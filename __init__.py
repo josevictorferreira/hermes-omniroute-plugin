@@ -1,24 +1,27 @@
-"""Omniroute image generation backend.
+"""Omniroute backends for Hermes — image generation and web search.
 
-Routes Hermes image generation through Omniroute, an OpenAI-compatible model
-router (``POST /v1/images/generations``). Implemented as an
-:class:`ImageGenProvider` using raw ``requests`` (mirrors the bundled xAI
-backend) so no extra SDK dependency is required.
+Routes Hermes through Omniroute, an OpenAI-compatible model router, using raw
+``requests`` (no extra SDK). One plugin, two providers registered from a single
+``register(ctx)``:
 
-Resolution precedence (first hit wins):
+* image generation — :class:`OmnirouteImageGenProvider` (``POST /v1/images/generations``)
+* web search        — :class:`OmnirouteWebSearchProvider` (``POST /v1/search``)
+
+Shared credential/endpoint resolution (first hit wins):
 
 * token    — ``OMNIROUTE_TOKEN`` / ``OMNIROUTE_API_KEY`` env, then
              ``image_gen.omniroute.token`` config
 * base_url — ``OMNIROUTE_BASE_URL`` env, then ``image_gen.omniroute.base_url``
              config, then ``DEFAULT_BASE_URL``
-* model    — ``OMNIROUTE_IMAGE_MODEL`` env, then ``image_gen.omniroute.model``
-             config, then ``image_gen.model`` config, then ``DEFAULT_MODEL``
-             (if listed), then the first model from ``GET /images/generations``
 
-The model catalog and each model's valid sizes come from Omniroute's
-``GET /images/generations`` listing (its own image registry — distinct from the
-chat ``/models`` catalog). Output (b64 or URL) is cached under
-``$HERMES_HOME/cache/images/``.
+Image model selection: ``OMNIROUTE_IMAGE_MODEL`` env, then ``image_gen.omniroute.model``
+config, then ``image_gen.model`` config, then ``DEFAULT_MODEL`` (if listed), then the
+first model from ``GET /images/generations``. The image catalog and each model's valid
+sizes come from that listing (Omniroute's own image registry, distinct from the chat
+``/models`` catalog); output (b64 or URL) is cached under ``$HERMES_HOME/cache/images/``.
+
+Web search: optional provider pinning via ``OMNIROUTE_SEARCH_PROVIDER`` env (e.g.
+``tavily-search``); otherwise Omniroute auto-selects from its configured providers.
 """
 
 from __future__ import annotations
@@ -37,10 +40,14 @@ from agent.image_gen_provider import (
     save_url_image,
     success_response,
 )
+from agent.web_search_provider import WebSearchProvider
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://omniroute.josevictor.me/api/v1"
+
+# Cap per-result search snippet length (some providers return full page text).
+_SEARCH_DESC_LIMIT = 500
 
 # Preferred default model when none is configured. Instance must have credentials
 # for its provider; users can override via image_gen.omniroute.model or the
@@ -402,6 +409,106 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         )
 
 
+def _resolve_search_provider() -> Optional[str]:
+    """Optional pinned Omniroute search provider (else Omniroute auto-selects)."""
+    env = os.environ.get("OMNIROUTE_SEARCH_PROVIDER")
+    if env:
+        return env.strip()
+    value = _omniroute_config().get("search_provider")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+class OmnirouteWebSearchProvider(WebSearchProvider):
+    """Omniroute ``POST /search`` backend (search-only; no extract)."""
+
+    @property
+    def name(self) -> str:
+        return "omniroute"
+
+    @property
+    def display_name(self) -> str:
+        return "Omniroute"
+
+    def is_available(self) -> bool:
+        if not _resolve_token():
+            return False
+        try:
+            import requests  # noqa: F401
+        except ImportError:
+            return False
+        return True
+
+    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+        query = (query or "").strip()
+        if not query:
+            return {"success": False, "error": "Query is required and must be a non-empty string"}
+
+        token = _resolve_token()
+        if not token:
+            return {
+                "success": False,
+                "error": "OMNIROUTE_TOKEN not set. Export OMNIROUTE_TOKEN or OMNIROUTE_API_KEY.",
+            }
+
+        try:
+            import requests
+        except ImportError:
+            return {"success": False, "error": "requests package not installed (pip install requests)"}
+
+        payload: Dict[str, Any] = {"query": query, "max_results": limit}
+        provider = _resolve_search_provider()
+        if provider:
+            payload["provider"] = provider
+
+        try:
+            resp = requests.post(
+                f"{_resolve_base_url()}/search",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "hermes-omniroute-plugin/0.1.0",
+                },
+                timeout=60,
+            )
+        except Exception as exc:
+            logger.debug("Omniroute search request failed", exc_info=True)
+            return {"success": False, "error": f"Omniroute search request failed: {exc}"}
+
+        if not resp.ok:
+            return {
+                "success": False,
+                "error": f"Omniroute returned HTTP {resp.status_code}: {resp.text[:500]}",
+            }
+
+        try:
+            body = resp.json()
+        except ValueError:
+            return {"success": False, "error": "Omniroute returned a non-JSON response"}
+
+        web: List[Dict[str, Any]] = []
+        for idx, r in enumerate(body.get("results") or [], start=1):
+            if not isinstance(r, dict):
+                continue
+            # Some providers return full page text in snippet/content; keep the
+            # results list compact (the agent can fetch a URL for full content).
+            desc = (r.get("snippet") or r.get("content") or "").strip()
+            if len(desc) > _SEARCH_DESC_LIMIT:
+                desc = desc[:_SEARCH_DESC_LIMIT].rstrip() + "…"
+            web.append(
+                {
+                    "title": r.get("title") or "",
+                    "url": r.get("url") or "",
+                    "description": desc,
+                    "position": r.get("position") or idx,
+                }
+            )
+        return {"success": True, "data": {"web": web}}
+
+
 def register(ctx) -> None:
-    """Plugin entry point — register the Omniroute provider."""
+    """Plugin entry point — register the Omniroute image-gen + web-search providers."""
     ctx.register_image_gen_provider(OmnirouteImageGenProvider())
+    ctx.register_web_search_provider(OmnirouteWebSearchProvider())

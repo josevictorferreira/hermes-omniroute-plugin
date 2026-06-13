@@ -1,7 +1,9 @@
 name: omniroute
-version: 0.1.0
-description: "Omniroute image generation backend (OpenAI-compatible /v1/images/generations). Saves images to $HERMES_HOME/cache/images/."
+version: 0.2.0
+description: "Omniroute backends for Hermes: image generation (/v1/images/generations) and web search (/v1/search) via the OpenAI-compatible Omniroute router."
 author: Jose Victor
 kind: backend
+provides_web_providers:
+  - omniroute
 requires_env:
   - OMNIROUTE_TOKEN
