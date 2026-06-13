@@ -23,6 +23,7 @@ chat ``/models`` catalog). Output (b64 or URL) is cached under
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -66,6 +67,30 @@ def _orientation(size: str) -> str:
     if h > w:
         return "portrait"
     return "square"
+
+
+def _detect_extension(b64: str, default: str = "png") -> str:
+    """Sniff image format from base64 magic bytes so cached files are honest.
+
+    Omniroute proxies many providers; some return JPEG/WebP even though the
+    default cache extension is png. Returns a lowercase extension string.
+    """
+    try:
+        head = b64.split(",", 1)[1] if b64.startswith("data:") else b64
+        chunk = head[:24]
+        chunk = chunk[: len(chunk) - (len(chunk) % 4)]
+        raw = base64.b64decode(chunk)
+    except Exception:
+        return default
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if raw.startswith(b"\x89PNG"):
+        return "png"
+    if raw.startswith(b"GIF8"):
+        return "gif"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "webp"
+    return default
 
 
 def _pick_size(supported: Optional[List[str]], aspect: str) -> str:
@@ -330,7 +355,9 @@ class OmnirouteImageGenProvider(ImageGenProvider):
 
         if b64:
             try:
-                image_ref = str(save_b64_image(b64, prefix="omniroute"))
+                image_ref = str(
+                    save_b64_image(b64, prefix="omniroute", extension=_detect_extension(b64))
+                )
             except Exception as exc:
                 return error_response(
                     error=f"Could not save image to cache: {exc}",
