@@ -1,0 +1,7 @@
+name: omniroute
+version: 0.1.0
+description: "Omniroute image generation backend (OpenAI-compatible /v1/images/generations). Saves images to $HERMES_HOME/cache/images/."
+author: Jose Victor
+kind: backend
+requires_env:
+  - OMNIROUTE_TOKEN
