@@ -100,9 +100,22 @@ def _detect_extension(b64: str, default: str = "png") -> str:
     return default
 
 
+def _is_valid_size(s: str) -> bool:
+    """Return True if *s* looks like a real size token (e.g. ``1024x1024`` or ``16:9``)."""
+    sep = ":" if ":" in s else ("x" if "x" in s.lower() else None)
+    if sep is None:
+        return False
+    try:
+        parts = s.lower().split(sep)[:2]
+        w, h = int(parts[0]), int(parts[1])
+        return w > 0 and h > 0
+    except (ValueError, TypeError, IndexError):
+        return False
+
+
 def _pick_size(supported: Optional[List[str]], aspect: str) -> str:
     """Map a Hermes aspect ratio to one of a model's supported sizes."""
-    options = [s for s in (supported or []) if isinstance(s, str)]
+    options = [s for s in (supported or []) if isinstance(s, str) and _is_valid_size(s)]
     if not options:
         return _FALLBACK_SIZE
     for s in options:  # exact orientation match
