@@ -132,6 +132,22 @@ def _omniroute_config() -> Dict[str, Any]:
     return sub if isinstance(sub, dict) else {}
 
 
+def _web_omniroute_config() -> Dict[str, Any]:
+    """Read the ``web.omniroute`` section from config.yaml ({} on any failure)."""
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config()
+        web = cfg.get("web") if isinstance(cfg, dict) else None
+        if not isinstance(web, dict):
+            return {}
+        sub = web.get("omniroute")
+        return sub if isinstance(sub, dict) else {}
+    except Exception as exc:
+        logger.debug("Could not load web.omniroute config: %s", exc)
+        return {}
+
+
 def _resolve_base_url() -> str:
     env = os.environ.get("OMNIROUTE_BASE_URL")
     if env:
@@ -410,10 +426,21 @@ class OmnirouteImageGenProvider(ImageGenProvider):
 
 
 def _resolve_search_provider() -> Optional[str]:
-    """Optional pinned Omniroute search provider (else Omniroute auto-selects)."""
+    """Optional pinned Omniroute search provider (else Omniroute auto-selects).
+
+    Resolution order:
+      1. ``OMNIROUTE_SEARCH_PROVIDER`` env var
+      2. ``web.omniroute.search_provider`` (documented config path)
+      3. ``image_gen.omniroute.search_provider`` (legacy fallback)
+    """
     env = os.environ.get("OMNIROUTE_SEARCH_PROVIDER")
     if env:
         return env.strip()
+    # web.omniroute.search_provider is the documented path; check it first.
+    value = _web_omniroute_config().get("search_provider")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    # Fallback: image_gen.omniroute.search_provider (original code path).
     value = _omniroute_config().get("search_provider")
     if isinstance(value, str) and value.strip():
         return value.strip()
