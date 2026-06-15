@@ -29,6 +29,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 from agent.image_gen_provider import (
@@ -45,6 +46,23 @@ from agent.web_search_provider import WebSearchProvider
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://omniroute.josevictor.me/api/v1"
+
+
+def _read_plugin_version() -> str:
+    """Read ``version:`` from plugin.yaml so User-Agent stays in sync across releases."""
+    try:
+        path = os.path.join(os.path.dirname(__file__), "plugin.yaml")
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                m = re.match(r"^version:\s*(.+?)\s*$", line)
+                if m:
+                    return m.group(1).strip().strip("\"'")
+    except Exception:
+        logger.debug("Failed to read version from plugin.yaml", exc_info=True)
+    return "0.2.0"
+
+
+_PLUGIN_VERSION = _read_plugin_version()
 
 # Cap per-result search snippet length (some providers return full page text).
 _SEARCH_DESC_LIMIT = 500
@@ -308,7 +326,7 @@ class OmnirouteImageGenProvider(ImageGenProvider):
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json",
-                    "User-Agent": "hermes-omniroute-plugin/0.1.0",
+                    "User-Agent": f"hermes-omniroute-plugin/{_PLUGIN_VERSION}",
                 },
                 timeout=120,
             )
@@ -469,7 +487,7 @@ class OmnirouteWebSearchProvider(WebSearchProvider):
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json",
-                    "User-Agent": "hermes-omniroute-plugin/0.1.0",
+                    "User-Agent": f"hermes-omniroute-plugin/{_PLUGIN_VERSION}",
                 },
                 timeout=60,
             )
