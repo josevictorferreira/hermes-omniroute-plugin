@@ -231,18 +231,31 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         return self._resolve_model()
 
     def _resolve_model(self) -> Optional[str]:
+        registry = self._fetch_registry()
+        # Step 1: OMNIROUTE_IMAGE_MODEL env (explicit override — trust it)
         env = os.environ.get("OMNIROUTE_IMAGE_MODEL")
-        if env:
+        if env and env.strip():
             return env.strip()
+        # Step 2: image_gen.omniroute.model config (provider-specific — trust it)
         sub = _omniroute_config().get("model")
         if isinstance(sub, str) and sub.strip():
             return sub.strip()
+        # Step 3: image_gen.model config (global — may not be in Omniroute registry)
         top = _load_config().get("model")
         if isinstance(top, str) and top.strip():
-            return top.strip()
+            candidate = top.strip()
+            if candidate in registry:
+                return candidate
+            logger.info(
+                "Global image_gen.model %r not in Omniroute registry; "
+                "falling back to default model selection.",
+                candidate,
+            )
+        # Step 4: DEFAULT_MODEL if listed in registry
         ids = [x["id"] for x in self.list_models()]
         if DEFAULT_MODEL in ids:
             return DEFAULT_MODEL
+        # Step 5: first available model from registry
         return ids[0] if ids else DEFAULT_MODEL
 
     def get_setup_schema(self) -> Dict[str, Any]:
