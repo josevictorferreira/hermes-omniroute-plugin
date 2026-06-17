@@ -517,7 +517,7 @@ class OmnirouteWebSearchProvider(WebSearchProvider):
                     "title": r.get("title") or "",
                     "url": r.get("url") or "",
                     "description": desc,
-                    "position": r.get("position") or idx,
+                    "position": r.get("position") if r.get("position") is not None else idx,
                 }
             )
         return {"success": True, "data": {"web": web}}
