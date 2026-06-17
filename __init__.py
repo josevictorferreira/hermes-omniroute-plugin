@@ -106,7 +106,9 @@ def _is_valid_size(s: str) -> bool:
     if sep is None:
         return False
     try:
-        parts = s.lower().split(sep)[:2]
+        parts = s.lower().split(sep)
+        if len(parts) != 2:
+            return False
         w, h = int(parts[0]), int(parts[1])
         return w > 0 and h > 0
     except (ValueError, TypeError, IndexError):
