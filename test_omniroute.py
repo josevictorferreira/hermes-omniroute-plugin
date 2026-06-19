@@ -18,6 +18,10 @@ agent_ws = types.ModuleType("agent.web_search_provider")
 agent_ws.WebSearchProvider = type("WebSearchProvider", (), {})
 sys.modules["agent.web_search_provider"] = agent_ws
 
+agent_tts = types.ModuleType("agent.tts_provider")
+agent_tts.TTSProvider = type("TTSProvider", (), {})
+sys.modules["agent.tts_provider"] = agent_tts
+
 agent_mod = types.ModuleType("agent")
 agent_mod.__path__ = []
 sys.modules["agent"] = agent_mod

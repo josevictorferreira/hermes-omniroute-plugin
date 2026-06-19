@@ -21,6 +21,7 @@ for mod_name in (
     "agent",
     "agent.image_gen_provider",
     "agent.web_search_provider",
+    "agent.tts_provider",
     "hermes_cli",
     "hermes_cli.config",
 ):
@@ -39,6 +40,7 @@ for attr in (
 ):
     setattr(sys.modules["agent.image_gen_provider"], attr, attr)
 sys.modules["agent.web_search_provider"].WebSearchProvider = object
+sys.modules["agent.tts_provider"].TTSProvider = object
 sys.modules["hermes_cli.config"].load_config = lambda: {}
 
 # Load the plugin module from file.

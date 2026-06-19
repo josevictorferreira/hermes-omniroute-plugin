@@ -35,10 +35,20 @@ class _WebSearchProvider:
 
 wsp.WebSearchProvider = _WebSearchProvider
 
+ttsp = types.ModuleType("agent.tts_provider")
+
+
+class _TTSProvider:
+    pass
+
+
+ttsp.TTSProvider = _TTSProvider
+
 agent_mod = types.ModuleType("agent")
 sys.modules["agent"] = agent_mod
 sys.modules["agent.image_gen_provider"] = igp
 sys.modules["agent.web_search_provider"] = wsp
+sys.modules["agent.tts_provider"] = ttsp
 
 import importlib.util
 import os
