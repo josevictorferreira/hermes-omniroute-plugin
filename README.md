@@ -95,7 +95,13 @@ Synthesizes via OpenAI-compatible `POST /v1/audio/speech` payload
 (`{model, input, voice, response_format, speed}`). Audio formats: `mp3` and
 `opus`. The voice catalog exposes the six standard OpenAI voices (alloy, echo,
 fable, onyx, nova, shimmer). `list_models()` fetches `GET /v1/models` and
-filters for TTS-capable entries (ids containing `tts`, `speech`, or `audio`).
+filters TTS-capable entries (ids containing `tts`, `speech`, `audio`).
+
+The provider registers and appears in `hermes tools` without a token; the
+token is only required at synthesis time. Token resolution mirrors the
+shared Omniroute credentials: `OMNIROUTE_TOKEN` / `OMNIROUTE_API_KEY` env,
+`tts.omniroute.token` config, falling back to `image_gen.omniroute.token`.
+Unsupported audio formats are clamped to `mp3`.
 
 ## Usage
 
