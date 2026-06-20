@@ -1,64 +1,12 @@
-"""Test that OmnirouteWebSearchProvider.search() preserves position=0.
+"""Web-search tests: search() position mapping (position=0 preservation).
 
-This test exercises the real search() method with requests.post mocked,
-so it will fail if the implementation reverts to `r.get("position") or idx`.
+Merged from the former ``test_position_zero.py``.
 """
 import json
-import sys
-import types
 import unittest
 from unittest.mock import patch, MagicMock
 
-# --- Stub Hermes internals so __init__.py can be imported ---
-
-igp = types.ModuleType("agent.image_gen_provider")
-igp.DEFAULT_ASPECT_RATIO = "square"
-
-
-class _ImageGenProvider:
-    pass
-
-
-igp.ImageGenProvider = _ImageGenProvider
-igp.resolve_aspect_ratio = lambda a: a if a in ("landscape", "square", "portrait") else "square"
-igp.success_response = lambda **k: {"success": True, **k}
-igp.error_response = lambda **k: {"success": False, **k}
-igp.save_b64_image = lambda b64, prefix="x", extension="png": f"/tmp/{prefix}.{extension}"
-igp.save_url_image = lambda u, prefix="x": f"/tmp/{prefix}.png"
-
-wsp = types.ModuleType("agent.web_search_provider")
-
-
-class _WebSearchProvider:
-    pass
-
-
-wsp.WebSearchProvider = _WebSearchProvider
-
-ttsp = types.ModuleType("agent.tts_provider")
-
-
-class _TTSProvider:
-    pass
-
-
-ttsp.TTSProvider = _TTSProvider
-
-agent_mod = types.ModuleType("agent")
-sys.modules["agent"] = agent_mod
-sys.modules["agent.image_gen_provider"] = igp
-sys.modules["agent.web_search_provider"] = wsp
-sys.modules["agent.tts_provider"] = ttsp
-
-import importlib.util
-import os
-
-os.environ.setdefault("OMNIROUTE_TOKEN", "test-token")
-
-# Load the plugin module
-spec = importlib.util.spec_from_file_location("omniroute_plugin", "__init__.py")
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
+import omniroute_plugin as mod
 
 
 class TestSearchPositionMapping(unittest.TestCase):

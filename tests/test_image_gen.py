@@ -1,55 +1,40 @@
-"""Tests for _resolve_model() registry validation fix (issue #1).
+"""Image-generation tests.
 
-Verifies that a global image_gen.model not present in Omniroute's image
-registry is rejected and falls through to DEFAULT_MODEL / first-available,
-while Omniroute-specific overrides (env var, image_gen.omniroute.model)
-are trusted as-is.
+Merged from the former ``test_omniroute.py`` (size/orientation validation) and
+``test_resolve_model.py`` (``_resolve_model()`` registry validation).
 """
-
-import importlib.util
 import os
-import sys
 from unittest.mock import patch
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Stub out Hermes-internal dependencies so __init__.py can be imported.
-# ---------------------------------------------------------------------------
+import omniroute_plugin as plugin
+from omniroute_plugin.providers.image_gen import _is_valid_size, _pick_size
 
-for mod_name in (
-    "agent",
-    "agent.image_gen_provider",
-    "agent.web_search_provider",
-    "agent.tts_provider",
-    "hermes_cli",
-    "hermes_cli.config",
-):
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = type(sys)("stub")
 
-sys.modules["agent.image_gen_provider"].ImageGenProvider = object
-sys.modules["agent.image_gen_provider"].WebSearchProvider = object
-for attr in (
-    "DEFAULT_ASPECT_RATIO",
-    "error_response",
-    "resolve_aspect_ratio",
-    "save_b64_image",
-    "save_url_image",
-    "success_response",
-):
-    setattr(sys.modules["agent.image_gen_provider"], attr, attr)
-sys.modules["agent.web_search_provider"].WebSearchProvider = object
-sys.modules["agent.tts_provider"].TTSProvider = object
-sys.modules["hermes_cli.config"].load_config = lambda: {}
+def test_is_valid_size_rejects_extra_separators_x():
+    assert _is_valid_size("1024x1024xjunk") is False
 
-# Load the plugin module from file.
-HERE = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location(
-    "omniroute_plugin", os.path.join(HERE, "__init__.py")
-)
-plugin = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(plugin)
+
+def test_is_valid_size_rejects_extra_separators_colon():
+    assert _is_valid_size("16:9:1") is False
+
+
+def test_is_valid_size_rejects_extra_separators_colon2():
+    assert _is_valid_size("1024:1024:extra") is False
+
+
+def test_is_valid_size_accepts_valid_x():
+    assert _is_valid_size("1024x1024") is True
+
+
+def test_is_valid_size_accepts_valid_colon():
+    assert _is_valid_size("16:9") is True
+
+
+def test_pick_size_skips_malformed_tokens():
+    assert _pick_size(["1024x1024xjunk", "16:9:1", "1024x1024"], "square") == "1024x1024"
+
 
 OmnirouteImageGenProvider = plugin.OmnirouteImageGenProvider
 DEFAULT_MODEL = plugin.DEFAULT_MODEL
@@ -98,7 +83,7 @@ class TestOmnirouteConfig:
 
     def test_omniroute_config_trusted(self):
         p = _provider_with_registry()
-        with patch.object(plugin, "_omniroute_config", return_value={"model": "custom/omni-model"}):
+        with patch("omniroute_plugin.providers.image_gen._omniroute_config", return_value={"model": "custom/omni-model"}):
             assert p._resolve_model() == "custom/omni-model"
 
 
@@ -107,23 +92,23 @@ class TestGlobalConfigValidation:
 
     def test_global_model_in_registry_accepted(self):
         p = _provider_with_registry()
-        with patch.object(plugin, "_load_config", return_value={"model": "openai/dall-e-3"}):
+        with patch("omniroute_plugin.providers.image_gen._load_config", return_value={"model": "openai/dall-e-3"}):
             assert p._resolve_model() == "openai/dall-e-3"
 
     def test_global_model_not_in_registry_rejected(self):
         """Core bug fix: gpt-image-2-medium not in registry → fall through."""
         p = _provider_with_registry()
-        with patch.object(plugin, "_load_config", return_value={"model": "gpt-image-2-medium"}):
+        with patch("omniroute_plugin.providers.image_gen._load_config", return_value={"model": "gpt-image-2-medium"}):
             assert p._resolve_model() == DEFAULT_MODEL
 
     def test_global_model_empty_string_falls_through(self):
         p = _provider_with_registry()
-        with patch.object(plugin, "_load_config", return_value={"model": "  "}):
+        with patch("omniroute_plugin.providers.image_gen._load_config", return_value={"model": "  "}):
             assert p._resolve_model() == DEFAULT_MODEL
 
     def test_global_model_none_falls_through(self):
         p = _provider_with_registry()
-        with patch.object(plugin, "_load_config", return_value={}):
+        with patch("omniroute_plugin.providers.image_gen._load_config", return_value={}):
             assert p._resolve_model() == DEFAULT_MODEL
 
 
@@ -158,13 +143,13 @@ class TestPrecedence:
     @patch.dict(os.environ, {"OMNIROUTE_IMAGE_MODEL": "env/model"})
     def test_env_beats_global_config(self):
         p = _provider_with_registry()
-        with patch.object(plugin, "_load_config", return_value={"model": "openai/dall-e-3"}):
+        with patch("omniroute_plugin.providers.image_gen._load_config", return_value={"model": "openai/dall-e-3"}):
             assert p._resolve_model() == "env/model"
 
     def test_omniroute_config_beats_invalid_global(self):
         p = _provider_with_registry()
         with (
-            patch.object(plugin, "_omniroute_config", return_value={"model": "openai/dall-e-3"}),
-            patch.object(plugin, "_load_config", return_value={"model": "gpt-image-2-medium"}),
+            patch("omniroute_plugin.providers.image_gen._omniroute_config", return_value={"model": "openai/dall-e-3"}),
+            patch("omniroute_plugin.providers.image_gen._load_config", return_value={"model": "gpt-image-2-medium"}),
         ):
             assert p._resolve_model() == "openai/dall-e-3"

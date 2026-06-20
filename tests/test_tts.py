@@ -1,65 +1,17 @@
-"""Tests for OmnirouteTTSProvider — TTS via Omniroute /v1/audio/speech.
+"""TTS provider tests: identity, voice catalog, model/token resolution,
+setup schema, and synthesize()/list_models() over mocked HTTP.
 
-Covers unit-level config resolution (model, token, voices, is_available) and
-integration-level synthesize() behavior with mocked HTTP.  Follows the same
-stub-and-importlib pattern as test_resolve_model.py / test_position_zero.py.
+Merged from the former ``test_tts_provider.py`` (register() coverage moved to
+``test_register.py``).
 """
-
-import importlib.util
 import os
-import sys
-import types
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Stub out Hermes-internal dependencies __init__.py imports at module load.
-# ---------------------------------------------------------------------------
+from omniroute_plugin.config import DEFAULT_TTS_MODEL, _resolve_tts_model, _resolve_tts_token
+from omniroute_plugin.providers.tts import OmnirouteTTSProvider, _TTS_VOICE_CATALOG
 
-for mod_name in (
-    "agent",
-    "agent.image_gen_provider",
-    "agent.web_search_provider",
-    "agent.tts_provider",
-    "hermes_cli",
-    "hermes_cli.config",
-):
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = type(sys)("stub")
-
-sys.modules["agent.image_gen_provider"].ImageGenProvider = object
-for attr in (
-    "DEFAULT_ASPECT_RATIO",
-    "error_response",
-    "resolve_aspect_ratio",
-    "save_b64_image",
-    "save_url_image",
-    "success_response",
-):
-    setattr(sys.modules["agent.image_gen_provider"], attr, attr)
-sys.modules["agent.web_search_provider"].WebSearchProvider = object
-sys.modules["agent.tts_provider"].TTSProvider = object
-sys.modules["hermes_cli.config"].load_config = lambda: {}
-
-# Load plugin module from file.
-HERE = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location(
-    "omniroute_plugin_tts", os.path.join(HERE, "__init__.py")
-)
-plugin = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(plugin)
-
-OmnirouteTTSProvider = plugin.OmnirouteTTSProvider
-DEFAULT_TTS_MODEL = plugin.DEFAULT_TTS_MODEL
-_resolve_tts_model = plugin._resolve_tts_model
-_resolve_tts_token = plugin._resolve_tts_token
-_TTS_VOICE_CATALOG = plugin._TTS_VOICE_CATALOG
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _make_provider():
     return OmnirouteTTSProvider()
@@ -419,22 +371,3 @@ def _mock_response_with_json(json_data):
     resp.status_code = 200
     resp.json.return_value = json_data
     return resp
-
-
-# ---------------------------------------------------------------------------
-# Integration: register() wires the TTS provider
-# ---------------------------------------------------------------------------
-
-class TestRegister:
-    def test_register_calls_register_tts_provider(self):
-        ctx = MagicMock()
-        plugin.register(ctx)
-        ctx.register_tts_provider.assert_called_once()
-        provider = ctx.register_tts_provider.call_args[0][0]
-        assert isinstance(provider, OmnirouteTTSProvider)
-
-    def test_register_still_registers_image_and_web(self):
-        ctx = MagicMock()
-        plugin.register(ctx)
-        ctx.register_image_gen_provider.assert_called_once()
-        ctx.register_web_search_provider.assert_called_once()
