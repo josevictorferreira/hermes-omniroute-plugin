@@ -35,6 +35,7 @@ def _install_stubs() -> None:
     igp.error_response = lambda *a, **k: {"success": False}
     igp.resolve_aspect_ratio = lambda *a, **k: "1:1"
     igp.save_b64_image = lambda *a, **k: None
+    igp.normalize_reference_images = lambda v: None
     igp.save_url_image = lambda *a, **k: None
     igp.success_response = lambda *a, **k: {"success": True}
 
