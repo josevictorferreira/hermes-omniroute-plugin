@@ -326,25 +326,19 @@ class OmnirouteImageGenProvider(ImageGenProvider):
 
         try:
             if is_edit:
-                # Load source images and build multipart form data.
-                file_parts = []
-                for src in sources:
-                    data, filename = _load_image_bytes(src)
-                    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "png"
-                    mime = {
-                        "png": "image/png",
-                        "jpg": "image/jpeg",
-                        "jpeg": "image/jpeg",
-                        "webp": "image/webp",
-                        "gif": "image/gif",
-                    }.get(ext, "image/png")
-                    file_parts.append(("image", (filename, io.BytesIO(data), mime)))
-
+                edit_payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "size": size,
+                }
+                if image_url and image_url.strip():
+                    edit_payload["image"] = image_url.strip()
+                if refs:
+                    edit_payload["reference_images"] = refs
                 resp = requests.post(
                     f"{base_url}/images/edits",
-                    data={"model": model, "prompt": prompt, "size": size},
-                    files=file_parts,
-                    headers=common_headers,
+                    json=edit_payload,
+                    headers={**common_headers, "Content-Type": "application/json"},
                     timeout=120,
                 )
             else:

@@ -201,20 +201,20 @@ class TestGenerateRouting:
     def test_routes_to_edits_when_image_url_given(
         self, mock_post, mock_save, mock_load
     ):
-        mock_save.return_value = "/cache/img.png"
         mock_post.return_value = _mock_api_resp()
-        mock_load.return_value = (b"img-bytes", "input.png")
 
         provider = _make_provider()
-        result = provider.generate(
-            "make it blue",
+        provider.generate(
+            "make blue",
             image_url="https://example.com/photo.png",
         )
 
         called_url = mock_post.call_args[0][0]
         assert "/images/edits" in called_url
-        assert "files" in mock_post.call_args.kwargs
-        mock_load.assert_called_once()
+        assert "json" in mock_post.call_args.kwargs
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["image"] == "https://example.com/photo.png"
+        assert payload["prompt"] == "make blue"
 
     @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
@@ -259,19 +259,21 @@ class TestGenerateRouting:
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")
-    def test_edit_uses_multipart_form_data(self, mock_post, mock_save, mock_load):
+    def test_edit_uses_json_payload(self, mock_post, mock_save, mock_load):
         mock_save.return_value = "/cache/img.png"
         mock_post.return_value = _mock_api_resp()
-        mock_load.return_value = (b"png-data", "photo.png")
 
         provider = _make_provider()
         provider.generate("edit this", image_url="https://example.com/photo.png")
 
         kwargs = mock_post.call_args.kwargs
-        assert "files" in kwargs
-        assert "data" in kwargs
-        form_data = kwargs["data"]
-        assert form_data["prompt"] == "edit this"
+        assert "json" in kwargs
+        assert "files" not in kwargs
+        payload = kwargs["json"]
+        assert payload["prompt"] == "edit this"
+        assert payload["image"] == "https://example.com/photo.png"
+        assert payload["model"]
+        assert payload["size"]
 
     @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
@@ -295,13 +297,17 @@ class TestEditErrorHandling:
     @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("requests.post")
-    def test_edit_image_load_failure_returns_error(self, mock_post, mock_load):
-        mock_load.side_effect = FileNotFoundError("no such file")
+    def test_edit_payload_forwards_local_image_url(self, mock_post, mock_load):
+        """Local image paths are forwarded as-is; no file IO happens."""
+        mock_post.return_value = _mock_api_resp()
         provider = _make_provider()
-        result = provider.generate("edit", image_url="/nonexistent/file.png")
 
-        assert result["success"] is False
-        mock_post.assert_not_called()
+        provider.generate("edit", image_url="/nonexistent/file.png")
+
+        mock_load.assert_not_called()
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["image"] == "/nonexistent/file.png"
+        assert payload["prompt"] == "edit"
 
     @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
@@ -414,5 +420,11 @@ class TestEditMultipleImages:
             )
 
         kwargs = mock_post.call_args.kwargs
-        assert len(kwargs["files"]) == 3
-        assert mock_load.call_count == 3
+        assert "json" in kwargs
+        payload = kwargs["json"]
+        assert payload["image"] == "https://example.com/main.png"
+        assert payload["reference_images"] == [
+            "https://example.com/ref1.png",
+            "https://example.com/ref2.png",
+        ]
+        assert mock_load.call_count == 0
