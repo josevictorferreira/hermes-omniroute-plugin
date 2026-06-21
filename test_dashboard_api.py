@@ -15,6 +15,20 @@ import types
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _clear_omniroute_env(monkeypatch):
+    """Ensure dashboard API tests do not inherit OMNIROUTE env vars from the host."""
+    for _key in [
+        "OMNIROUTE_TOKEN",
+        "OMNIROUTE_API_KEY",
+        "OMNIROUTE_BASE_URL",
+        "OMNIROUTE_IMAGE_MODEL",
+        "OMNIROUTE_TTS_MODEL",
+        "OMNIROUTE_SEARCH_PROVIDER",
+    ]:
+        monkeypatch.delenv(_key, raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers for building fresh mock configs
 # ---------------------------------------------------------------------------
