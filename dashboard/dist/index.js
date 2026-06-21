@@ -198,7 +198,13 @@
         h("h1", null, "Omniroute Configuration"),
         h("p", { className: "omniroute-subtitle" },
           "Manage all Omniroute plugin settings from one place."
-        )
+        ),
+ h("a", {
+          href: "https://hermes-agent.nousresearch.com/docs/user-guide/features/extending-the-dashboard",
+          target: "_blank",
+          rel: "noopener noreferrer",
+          className: "omniroute-docs-link",
+        "Learn how to extend the dashboard")
       ),
 
       // Env override warning

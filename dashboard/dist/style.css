@@ -16,9 +16,30 @@
 }
 
 .omniroute-subtitle {
-  font-size: 0.875rem;
-  color: hsl(var(--muted-foreground, #71717a));
-  margin: 0;
+ font-size: 0.875rem;
+ color: hsl(var(--muted-foreground, #71717a));
+ margin: 0 0 0.5rem;
+}
+
+.omniroute-docs-link {
+ display: inline-flex;
+ align-items: center;
+ gap: 0.25rem;
+ font-size: 0.8rem;
+ color: hsl(var(--primary, 217 91% 60%));
+ text-decoration: underline;
+ text-underline-offset: 2px;
+ transition: opacity 0.15s ease;
+}
+
+.omniroute-docs-link:focus {
+ outline: 2px solid hsl(var(--primary, 217 91% 60%));
+ outline-offset: 2px;
+ border-radius: 0.125rem;
+}
+
+.omniroute-docs-link:hover {
+ opacity: 0.8;
 }
 
 .omniroute-env-warning {
