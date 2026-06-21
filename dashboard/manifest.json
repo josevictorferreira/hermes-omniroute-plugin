@@ -1,0 +1,14 @@
+{
+  "name": "omniroute",
+  "label": "Omniroute",
+  "description": "Omniroute plugin configuration — API token, base URL, model preferences, and search provider settings.",
+  "icon": "Router",
+  "version": "0.2.0",
+  "tab": {
+    "path": "/omniroute",
+    "position": "after:plugins"
+  },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

@@ -1,0 +1,144 @@
+/* Omniroute Dashboard Plugin — Configuration Area Styles */
+
+.omniroute-config-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.omniroute-page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.omniroute-subtitle {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground, #71717a));
+  margin: 0;
+}
+
+.omniroute-env-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--warning, 38) 92% 50% / 0.1);
+  border: 1px solid hsl(var(--warning, 38) 92% 50% / 0.3);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.omniroute-card {
+  margin-bottom: 0;
+}
+
+.omniroute-field {
+  margin-bottom: 1.25rem;
+}
+
+.omniroute-field:last-child {
+  margin-bottom: 0;
+}
+
+.omniroute-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.375rem;
+}
+
+.omniroute-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.omniroute-env-var {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground, #71717a));
+}
+
+.omniroute-badge-env {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.omniroute-field-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.omniroute-field-desc {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground, #71717a));
+  margin: 0.375rem 0 0;
+  line-height: 1.4;
+}
+
+.omniroute-save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  background: hsl(var(--background, 0 0% 100%));
+}
+
+.omniroute-unsaved {
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground, #71717a));
+  font-style: italic;
+}
+
+.omniroute-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 9999;
+  animation: omniroute-toast-in 0.2s ease-out;
+}
+
+.omniroute-toast-success {
+  background: hsl(142 71% 45% / 0.95);
+  color: white;
+}
+
+.omniroute-toast-error {
+  background: hsl(0 84% 60% / 0.95);
+  color: white;
+}
+
+.omniroute-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: hsl(var(--muted-foreground, #71717a));
+  font-size: 0.875rem;
+}
+
+@keyframes omniroute-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
