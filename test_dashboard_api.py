@@ -63,6 +63,7 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
                 return fn
             return decorator
 
+    sys.modules.setdefault("fastapi", types.ModuleType("fastapi"))
     sys.modules["fastapi"].APIRouter = FakeRouter
 
     HERE = os.path.dirname(os.path.abspath(__file__))
@@ -71,6 +72,8 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
     )
     api_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(api_mod)
+    if hasattr(api_mod, "ConfigResponse"):
+        api_mod.ConfigResponse.model_rebuild(_types_namespace=api_mod.__dict__)
     return api_mod
 
 
