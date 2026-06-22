@@ -48,8 +48,8 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/ \
-            --tb=short \
-            --junitxml=junit-${{ matrix.python-version }}.xml
+          --tb=short \
+          --junitxml=junit-${{ matrix.python-version }}.xml
 
       - name: Upload test results
         if: always()
