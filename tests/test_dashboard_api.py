@@ -90,7 +90,7 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
 
     HERE = os.path.dirname(os.path.abspath(__file__))
     spec = importlib.util.spec_from_file_location(
-        "omniroute_dashboard_api", os.path.join(HERE, "dashboard", "plugin_api.py")
+        "omniroute_dashboard_api", os.path.join(HERE, "..", "dashboard", "plugin_api.py")
     )
     api_mod = importlib.util.module_from_spec(spec)
     sys.modules["omniroute_dashboard_api"] = api_mod

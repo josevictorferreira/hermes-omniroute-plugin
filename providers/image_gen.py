@@ -418,7 +418,7 @@ class OmnirouteImageGenProvider(ImageGenProvider):
                 image_ref = str(save_url_image(url, prefix="omniroute"))
             except Exception as exc:
                 logger.warning(
-                    "Omniroute image URL not cached (%s); falling back to bare URL.",
+                    "Omniroute image URL not cached (%s); falling back to bare URL (%s).",
                     url,
                     exc,
                 )

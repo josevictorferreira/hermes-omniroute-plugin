@@ -1,12 +1,13 @@
 # hermes-omniroute-plugin
 
 Hermes Agent backends route through
-[Omniroute](https://omniroute.josevictor.me), OpenAI-compatible model router.
-One plugin, three capabilities:
+[Omniroute](https://omniroute.josevictor.me) OpenAI-compatible model router.
+One plugin, four capabilities:
 
-- **Image generation** `POST /v1/images/generations`
-- **Web search** `POST /v1/search`
-- **Text-to-speech** `POST /v1/audio/speech`
+- **Model provider**      `POST /v1/chat/completions` (Hermes AIAgent routing)
+- **Image generation**    `POST /v1/images/generations`
+- **Web search**          `POST /v1/search`
+- **Text-to-speech**      `POST /v1/audio/speech`
 
 ## Install
 
@@ -19,6 +20,15 @@ git clone <this-repo> ~/.hermes/plugins/omniroute
 ```
 
 `register()` registers all three: image-gen, web-search, and TTS providers.
+
+The model provider lives in `model_provider/` and must be installed separately:
+
+```bash
+cp -r model_provider/ ~/.hermes/plugins/model-providers/omniroute/
+```
+
+This registers OmniRoute as a model provider for `hermes chat` / `AIAgent` routing
+(OpenAI-compatible `POST /v1/chat/completions`).
 
 ## Configure
 
@@ -34,7 +44,28 @@ export OMNIROUTE_TTS_MODEL=... optional, overrides config TTS model (default: op
 
 Default model when none is configured: `antigravity/gemini-3.1-flash-image`.
 
-Enable it and select as the active image backend:
+### Model provider
+
+Select OmniRoute as your model provider in `~/.hermes/config.yaml`:
+
+```yaml
+model:
+  provider: omniroute
+  omniroute:
+    base_url: https://omniroute.josevictor.me/api/v1   # optional
+    model: openai/gpt-4o-mini                         # optional
+    # token: <token>                                  # optional, prefer OMNIROUTE_TOKEN
+```
+
+The model list is fetched live from `GET /v1/models` on the first use
+(or when explicitly listing models). Fallback models are curated when the
+live catalog is unreachable.
+
+```bash
+hermes -z "What is the capital of France?" --provider omniroute --model openai/gpt-4o
+```
+
+### Image generation
 
 ```bash
 hermes plugins enable omniroute

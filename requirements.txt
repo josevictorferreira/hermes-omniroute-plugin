@@ -1,0 +1,9 @@
+# Runtime + test dependencies for the OmniRoute Hermes plugin.
+# The plugin uses `requests` for HTTP (image-gen, web-search, TTS providers),
+# `httpx` for model-provider model discovery, and `pydantic`/`fastapi` for the
+# dashboard plugin API. Tests mock fastapi, but pydantic must be importable.
+pytest>=8
+requests>=2.31
+httpx>=0.27
+pydantic>=2
+fastapi>=0.110

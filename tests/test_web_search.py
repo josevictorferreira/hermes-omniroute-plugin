@@ -19,6 +19,12 @@ class TestSearchPositionMapping(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("OMNIROUTE_TOKEN", None)
 
+    def setUp(self):
+        super().setUp()
+        patcher = patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def _make_provider(self):
         return mod.OmnirouteWebSearchProvider()
 

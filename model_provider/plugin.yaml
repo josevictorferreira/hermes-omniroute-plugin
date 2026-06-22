@@ -1,0 +1,5 @@
+name: omniroute
+kind: model-provider
+version: 0.1.0
+description: "OmniRoute — OpenAI-compatible model router. Routes chat/completions through omniroute.josevictor.me."
+author: Jose Victor
