@@ -17,9 +17,15 @@ import urllib.error
 import pytest
 
 
+# Skip entire module when dashboard dependencies are not installed.
+# CI installs only pytest requests; fastapi/pydantic optional here.
+pytest.importorskip("fastapi")
+pytest.importorskip("pydantic")
+
+
 @pytest.fixture(autouse=True)
 def _clear_omniroute_env(monkeypatch):
-    """Ensure dashboard API tests do not inherit OMNIROUTE env vars from the host."""
+    """Ensure dashboard API tests don't inherit OMNIROUTE env vars from host."""
     for _key in [
         "OMNIROUTE_TOKEN",
         "OMNIROUTE_API_KEY",
