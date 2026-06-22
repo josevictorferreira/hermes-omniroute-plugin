@@ -87,6 +87,7 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
         "omniroute_dashboard_api", os.path.join(HERE, "dashboard", "plugin_api.py")
     )
     api_mod = importlib.util.module_from_spec(spec)
+    sys.modules["omniroute_dashboard_api"] = api_mod
     spec.loader.exec_module(api_mod)
     if hasattr(api_mod, "ConfigResponse"):
         api_mod.ConfigResponse.model_rebuild(_types_namespace=api_mod.__dict__)

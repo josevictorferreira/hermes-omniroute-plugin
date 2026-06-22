@@ -43,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest requests pydantic
+          pip install pytest requests pydantic fastapi
 
       - name: Run tests
         run: |
