@@ -8,11 +8,14 @@ the real Hermes plugin loader, which sets `__path__` so relative imports
 or pull symbols from its submodules.
 """
 from __future__ import annotations
+import os
 
 import importlib.util
 import sys
 import types
 from pathlib import Path
+
+os.environ.setdefault("OMNIROUTE_TOKEN", "test-token")
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent
 PKG = "omniroute_plugin"
