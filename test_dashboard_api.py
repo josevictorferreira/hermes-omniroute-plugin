@@ -15,6 +15,12 @@ import types
 import pytest
 
 
+# Skip entire module when dashboard dependencies are not installed.
+# CI installs only pytest + requests; fastapi/pydantic are optional here.
+pytest.importorskip("fastapi")
+pytest.importorskip("pydantic")
+
+
 # ---------------------------------------------------------------------------
 # Helpers for building fresh mock configs
 # ---------------------------------------------------------------------------
