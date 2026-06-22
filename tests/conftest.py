@@ -38,6 +38,18 @@ def _install_stubs() -> None:
     igp.save_url_image = lambda *a, **k: None
     igp.success_response = lambda *a, **k: {"success": True}
 
+    def _normalize_ref(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, (list, tuple)):
+            out = [s for s in v if isinstance(s, str) and s.strip()]
+            return out or None
+        return None
+
+    igp.normalize_reference_images = _normalize_ref
+
     wsp = stub("agent.web_search_provider")
     wsp.WebSearchProvider = type("WebSearchProvider", (), {})
 
@@ -46,6 +58,21 @@ def _install_stubs() -> None:
 
     hcfg = stub("hermes_cli.config")
     hcfg.load_config = lambda: {}
+
+    # --- providers stubs (for model_provider plugin) ---
+    prov = stub("providers")
+    _registered_profiles = []
+    prov._registered = _registered_profiles
+    prov.register_provider = lambda p: _registered_profiles.append(p)
+
+    prov_base = stub("providers.base")
+    class _ProviderProfile:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+        def fetch_models(self, *, api_key=None, timeout=8.0):
+            return None
+    prov_base.ProviderProfile = _ProviderProfile
 
 
 def _load_plugin() -> None:
@@ -68,8 +95,35 @@ def _load_plugin() -> None:
 _install_stubs()
 _load_plugin()
 
+# --- load model_provider as a separate package ---
+_MODEL_PROVIDER_PKG = "omniroute_model_provider"
+_MODEL_PROVIDER_DIR = PLUGIN_DIR / "model_provider"
+
+
+def _load_model_provider() -> None:
+    """Load model_provider/ as ``omniroute_model_provider`` package."""
+    if _MODEL_PROVIDER_PKG in sys.modules:
+        return
+    init = _MODEL_PROVIDER_DIR / "__init__.py"
+    if not init.exists():
+        return
+    spec = importlib.util.spec_from_file_location(
+        _MODEL_PROVIDER_PKG,
+        init,
+        submodule_search_locations=[str(_MODEL_PROVIDER_DIR)],
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    module.__path__ = [str(_MODEL_PROVIDER_DIR)]
+    module.__package__ = _MODEL_PROVIDER_PKG
+    sys.modules[_MODEL_PROVIDER_PKG] = module
+    spec.loader.exec_module(module)
+
+
+_load_model_provider()
+
 import os as _os
-_os.environ["OMNICONFTEST_LOADED"]="1"
+_os.environ["OMNICONFTEST_LOADED"] = "1"
 import builtins as _b
-_print=_b.print
-_print("[CONFTEST] ran; omniroute_plugin in sys.modules:", "omniroute_plugin" in sys.modules, file=_b.__import__("sys").stderr)
+_print = _b.print
+_print("[CONFTEST] ran; omniroute_plugin sys.modules:", "omniroute_plugin" in sys.modules, file=_b.__import__("sys").stderr)
