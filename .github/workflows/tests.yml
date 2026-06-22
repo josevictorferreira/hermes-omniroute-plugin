@@ -47,7 +47,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ test_dashboard_api.py \
+          pytest tests/ \
             --tb=short \
             --junitxml=junit-${{ matrix.python-version }}.xml
 
