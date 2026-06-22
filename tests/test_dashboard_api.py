@@ -17,6 +17,20 @@ import urllib.error
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _clear_omniroute_env(monkeypatch):
+    """Ensure dashboard API tests do not inherit OMNIROUTE env vars from the host."""
+    for _key in [
+        "OMNIROUTE_TOKEN",
+        "OMNIROUTE_API_KEY",
+        "OMNIROUTE_BASE_URL",
+        "OMNIROUTE_IMAGE_MODEL",
+        "OMNIROUTE_TTS_MODEL",
+        "OMNIROUTE_SEARCH_PROVIDER",
+    ]:
+        monkeypatch.delenv(_key, raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers for building fresh mock configs
 # ---------------------------------------------------------------------------
@@ -74,6 +88,8 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
     )
     api_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(api_mod)
+    if hasattr(api_mod, "ConfigResponse"):
+        api_mod.ConfigResponse.model_rebuild(_types_namespace=api_mod.__dict__)
     return api_mod
 
 

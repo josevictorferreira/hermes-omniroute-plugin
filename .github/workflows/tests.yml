@@ -2,7 +2,6 @@ name: Tests
 
 on:
   push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -16,6 +15,8 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    env:
+      OMNIROUTE_TOKEN: dummy
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +47,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ \
+          pytest tests/ test_dashboard_api.py \
             --tb=short \
             --junitxml=junit-${{ matrix.python-version }}.xml
 
@@ -61,6 +62,6 @@ jobs:
       - name: Publish test summary
         if: always()
         run: |
-          echo "## Test results (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Test results (Python ${{ matrix.python-version }})" \u003e\u003e "$GITHUB_STEP_SUMMARY"
           python -m pip install junitparser --quiet
-          junitparser parse junit-${{ matrix.python-version }}.xml >> "$GITHUB_STEP_SUMMARY" || true
+          junitparser parse junit-${{ matrix.python-version }}.xml \u003e\u003e "$GITHUB_STEP_SUMMARY" || true
