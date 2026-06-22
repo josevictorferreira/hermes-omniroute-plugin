@@ -63,13 +63,18 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
                 return fn
             return decorator
 
-    sys.modules["fastapi"].APIRouter = FakeRouter
+    import fastapi  # noqa: F401
+
+    fastapi_mod = types.ModuleType("fastapi")
+    fastapi_mod.APIRouter = FakeRouter
+    sys.modules["fastapi"] = fastapi_mod
 
     HERE = os.path.dirname(os.path.abspath(__file__))
     spec = importlib.util.spec_from_file_location(
         "omniroute_dashboard_api", os.path.join(HERE, "dashboard", "plugin_api.py")
     )
     api_mod = importlib.util.module_from_spec(spec)
+    sys.modules["omniroute_dashboard_api"] = api_mod
     spec.loader.exec_module(api_mod)
     return api_mod
 
