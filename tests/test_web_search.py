@@ -3,6 +3,7 @@
 Merged from the former ``test_position_zero.py``.
 """
 import json
+import os
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -11,6 +12,12 @@ import omniroute_plugin as mod
 
 class TestSearchPositionMapping(unittest.TestCase):
     """Test that search() maps positions correctly, especially position=0."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+        self.addCleanup(patcher.stop)
+        patcher.start()
 
     def _make_provider(self):
         return mod.OmnirouteWebSearchProvider()
