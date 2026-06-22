@@ -1,5 +1,5 @@
 name: omniroute
-version: 0.2.0
+version: 0.3.0
 description: "Omniroute backends Hermes: image generation (/v1/images/generations), web search (/v1/search), and text-to-speech (/v1/audio/speech) via OpenAI-compatible Omniroute router."
 author: Jose Victor
 kind: backend
