@@ -63,6 +63,11 @@
       description: "Pinned search provider (e.g. tavily-search). Leave empty for Omniroute auto-select.",
       placeholder: "tavily-search" },
   ];
+ var MODEL_PROVIDER_FIELD = {
+ key: "model_provider_model", label: "Default Model", type: "select", envVar: "OMNIROUTE_MODEL",
+ description: "Select the model OmniRoute uses for chat completions. Fetch available models from the API.",
+ placeholder: "Select a model...",
+ };
 
   // ---------------------------------------------------------------------------
   // OmnirouteConfigPage — main component
@@ -92,6 +97,13 @@
     var _showToken = useState(false);
     var showToken = _showToken[0], setShowToken = _showToken[1];
 
+ //Model provider state
+ var _models = useState([]);
+ var models = _models[0], setModels = _models[1];
+ var _modelsLoading = useState(false);
+ var modelsLoading = _modelsLoading[0], setModelsLoading = _modelsLoading[1];
+ var _modelsError = useState("");
+ var modelsError = _modelsError[0], setModelsError = _modelsError[1];
     // Track whether any env var overrides are active.
     var hasEnvOverride = Object.values(envOverride).some(function (v) { return v; });
 
@@ -100,6 +112,23 @@
       setTimeout(function () { setToast({ message: "", type: "" }); }, 3000);
     }
 
+
+ function fetchModels(){
+ setModelsLoading(true);
+ setModelsError("");
+ fetchJSON("/api/plugins/omniroute/models")
+ .then(function(data){
+ setModels(data.models || []);
+ setModelsError(data.error || "");
+ })
+ .catch(function(){
+ setModels([]);
+ setModelsError("Failed to fetch models.");
+ })
+ .finally(function(){
+ setModelsLoading(false);
+ });
+ }
     // Load config on mount.
     useEffect(function () {
       setLoading(true);
@@ -118,6 +147,13 @@
         });
     }, []);
 
+
+ //Fetch models when config is loaded (if we have a token).
+ useEffect(function(){
+ if(!loading && config.token){
+ fetchModels();
+ }
+ }, [loading]);
     function handleChange(key, value) {
       var next = Object.assign({}, config);
       next[key] = value;
@@ -188,6 +224,45 @@
       );
     }
 
+
+ function renderModelProvider(){
+ var currentValue = config[MODEL_PROVIDER_FIELD.key] || "";
+ var envActive = envOverride[MODEL_PROVIDER_FIELD.key];
+ var hasModels = models.length > 0;
+
+ return h("div", { className: "omniroute-model-provider" },
+ // Model dropdown
+ h("div", { className: "omniroute-field-header" },
+ h(Label, { className: "omniroute-label" }, MODEL_PROVIDER_FIELD.label),
+ h("span", { className: "omniroute-env-var" },
+ MODEL_PROVIDER_FIELD.envVar,
+ envActive ? h(Badge, { variant: "warning", className: "omniroute-badge-env" }, "ENV override") : null
+ )
+ ),
+ h("div", { className: "omniroute-model-select-row" },
+ h(Select, {
+ value: currentValue,
+ className: "omniroute-input",
+ onChange: function(e){ handleChange(MODEL_PROVIDER_FIELD.key, e.target.value); },
+ },
+ h("option", { value: "" }, MODEL_PROVIDER_FIELD.placeholder),
+ hasModels ? models.map(function(m){
+ return h(SelectOption, { key: m.id, value: m.id }, m.name || m.id);
+ }) : null
+ ),
+ h(Button, {
+ variant: "ghost", size: "sm",
+ onClick: fetchModels,
+ disabled: modelsLoading,
+ className: "omniroute-refresh-btn",
+ }, modelsLoading ? "Loading..." : "Refresh")
+ ),
+ // Error message
+ modelsError ? h("p", { className: "omniroute-model-error" }, modelsError) : null,
+ // Description
+ h("p", { className: "omniroute-field-desc" }, MODEL_PROVIDER_FIELD.description)
+ );
+ }
     if (loading) {
       return h("div", { className: "omniroute-loading" }, "Loading configuration...");
     }
@@ -229,6 +304,16 @@
         )
       ),
 
+
+ // Model Provider
+ h(Card, { className: "omniroute-card" },
+ h(CardHeader, null,
+ h(CardTitle, null, "Model Provider")
+ ),
+ h(CardContent, null,
+ renderModelProvider()
+ )
+ ),
       h(Card, { className: "omniroute-card" },
         h(CardHeader, null,
           h(CardTitle, null, "Web Search")

@@ -142,3 +142,29 @@
     transform: translateY(0);
   }
 }
+
+/* Model Provider section */
+.omniroute-model-provider {
+  margin-bottom: 1.25rem;
+}
+
+.omniroute-model-select-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.omniroute-refresh-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.omniroute-model-error {
+  font-size: 0.75rem;
+  color: hsl(var(--destructive, 0 84% 60%));
+  margin: 0.375rem 0 0;
+}
+
+.omniroute-current-model {
+  font-style: italic;
+}

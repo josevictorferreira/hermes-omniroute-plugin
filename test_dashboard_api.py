@@ -8,17 +8,33 @@ Validates GET /config and POST /config endpoints, including:
 
 import asyncio
 import importlib.util
+import json
 import os
 import sys
 import types
+import urllib.error
 
 import pytest
 
 
 # Skip entire module when dashboard dependencies are not installed.
-# CI installs only pytest + requests; fastapi/pydantic are optional here.
+# CI installs only pytest requests; fastapi/pydantic optional here.
 pytest.importorskip("fastapi")
 pytest.importorskip("pydantic")
+
+
+@pytest.fixture(autouse=True)
+def _clear_omniroute_env(monkeypatch):
+    """Ensure dashboard API tests don't inherit OMNIROUTE env vars from host."""
+    for _key in [
+        "OMNIROUTE_TOKEN",
+        "OMNIROUTE_API_KEY",
+        "OMNIROUTE_BASE_URL",
+        "OMNIROUTE_IMAGE_MODEL",
+        "OMNIROUTE_TTS_MODEL",
+        "OMNIROUTE_SEARCH_PROVIDER",
+    ]:
+        monkeypatch.delenv(_key, raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +85,7 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
                 return fn
             return decorator
 
+    sys.modules.setdefault("fastapi", types.ModuleType("fastapi"))
     sys.modules["fastapi"].APIRouter = FakeRouter
 
     HERE = os.path.dirname(os.path.abspath(__file__))
@@ -77,6 +94,8 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
     )
     api_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(api_mod)
+    if hasattr(api_mod, "ConfigResponse"):
+        api_mod.ConfigResponse.model_rebuild(_types_namespace=api_mod.__dict__)
     return api_mod
 
 
@@ -98,6 +117,7 @@ class TestGetConfig:
             "image_model": "",
             "tts_model": "",
             "search_provider": "",
+            "model_provider_model": "",
         }
         assert resp.env_override == {
             "token": False,
@@ -105,6 +125,7 @@ class TestGetConfig:
             "image_model": False,
             "tts_model": False,
             "search_provider": False,
+            "model_provider_model": False,
         }
 
     def test_reads_config_values(self):
@@ -240,3 +261,258 @@ class TestPostConfig:
         config = saved[0]
         assert config["image_gen"]["omniroute"]["token"] == "only-token"
         assert "model" not in config["image_gen"]["omniroute"]
+
+
+
+# ---------------------------------------------------------------------------
+# Tests: GET /models endpoint
+# ---------------------------------------------------------------------------
+
+class TestGetModels:
+    def _load_with_config(self, mock_config=None, mock_save=None):
+        # Reuse the existing helper but need a fresh import
+        old = sys.modules.pop("omniroute_dashboard_api", None)
+        api = load_plugin_api_with_config(mock_config=mock_config, mock_save=mock_save)
+        return api
+
+    def test_returns_error_when_no_token(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        api = self._load_with_config(mock_config={})
+        resp = asyncio.run(api.get_models())
+        assert resp.models == []
+        assert "token" in resp.error.lower()
+
+    def test_returns_error_when_no_token_config_only(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        api = self._load_with_config(mock_config={
+            "image_gen": {"omniroute": {"base_url": "https://omniroute.example.com"}},
+        })
+        resp = asyncio.run(api.get_models())
+        assert resp.models == []
+        assert "token" in resp.error.lower()
+
+    def test_returns_error_when_api_unreachable(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        api = self._load_with_config(mock_config={
+            "image_gen": {"omniroute": {"token": "test-token"}},
+        })
+
+        def fake_urlopen(*args, **kwargs):
+            raise urllib.error.URLError("connection refused")
+
+        monkeypatch.setattr(api.urllib.request, "urlopen", fake_urlopen)
+        resp = asyncio.run(api.get_models())
+        assert resp.models == []
+        assert "refused" in resp.error or "Failed" in resp.error
+
+    def test_returns_models_on_success(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        api = self._load_with_config(mock_config={
+            "image_gen": {"omniroute": {"token": "test-token"}},
+        })
+
+        class FakeResponse:
+            def __init__(self, data):
+                self._data = data
+
+            def read(self):
+                return self._data.encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        api_data = json.dumps({
+            "data": [
+                {"id": "openai/gpt-4o", "name": "GPT-4o"},
+                {"id": "anthropic/claude-4", "name": "Claude 4", "owned_by": "anthropic"},
+                {"id": "google/gemini-2.5-pro"},
+            ]
+        })
+
+        monkeypatch.setattr(
+            api.urllib.request, "urlopen",
+            lambda *a, **kw: FakeResponse(api_data)
+        )
+        resp = asyncio.run(api.get_models())
+        ids = [m.id for m in resp.models]
+        assert "anthropic/claude-4" in ids
+        assert "google/gemini-2.5-pro" in ids
+        assert "openai/gpt-4o" in ids
+        assert resp.error == ""
+
+    def test_models_sorted_by_id(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        api = self._load_with_config(mock_config={
+            "image_gen": {"omniroute": {"token": "test-token"}},
+        })
+
+        class FakeResponse:
+            def __init__(self, data):
+                self._data = data
+
+            def read(self):
+                return self._data.encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        api_data = json.dumps({
+            "data": [
+                {"id": "z-model"},
+                {"id": "a-model"},
+                {"id": "m-model"},
+            ]
+        })
+
+        monkeypatch.setattr(
+            api.urllib.request, "urlopen",
+            lambda *a, **kw: FakeResponse(api_data)
+        )
+        resp = asyncio.run(api.get_models())
+        ids = [m.id for m in resp.models]
+        assert ids == ["a-model", "m-model", "z-model"]
+
+    def test_uses_env_token(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        api = self._load_with_config(mock_config={})
+
+        def fake_urlopen(*args, **kwargs):
+            raise urllib.error.URLError("stop")
+
+        monkeypatch.setattr(api.urllib.request, "urlopen", fake_urlopen)
+        resp = asyncio.run(api.get_models())
+        # Should NOT say token required because env token is set
+        assert "token required" not in resp.error.lower()
+
+    def test_uses_env_base_url(self, monkeypatch):
+        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        monkeypatch.setenv("OMNIROUTE_BASE_URL", "https://custom.example.com")
+
+        called_url = []
+        api = self._load_with_config(mock_config={})
+
+        # Capture the URL passed to Request
+        original_request = api.urllib.request.Request
+
+        class FakeRequest(original_request):
+            def __init__(self, url, *args, **kwargs):
+                called_url.append(url)
+                # Do not call super().__init__; original may try to validate URL
+
+        def fake_urlopen(*args, **kwargs):
+            raise urllib.error.URLError("stop")
+
+        monkeypatch.setattr(api.urllib.request, "Request", FakeRequest)
+        monkeypatch.setattr(api.urllib.request, "urlopen", fake_urlopen)
+        asyncio.run(api.get_models())
+        assert any("custom.example.com" in u for u in called_url)
+
+
+# ---------------------------------------------------------------------------
+# Tests: model_provider_model in config
+# ---------------------------------------------------------------------------
+
+class TestModelProviderConfig:
+    def test_get_config_includes_model_provider_default(self):
+        api = load_plugin_api_with_config(mock_config={})
+        resp = asyncio.run(api.get_config())
+        assert "model_provider_model" in resp.config
+        assert resp.config["model_provider_model"] == ""
+
+    def test_get_config_reads_model_provider_model(self):
+        cfg = {
+            "model": {"omniroute": {"default": "openai/gpt-4o"}},
+        }
+        api = load_plugin_api_with_config(mock_config=cfg)
+        resp = asyncio.run(api.get_config())
+        assert resp.config["model_provider_model"] == "openai/gpt-4o"
+
+    def test_post_config_saves_model_provider_model(self):
+        saved = {}
+
+        def mock_save(c):
+            saved.update(c)
+
+        api = load_plugin_api_with_config(mock_config={}, mock_save=mock_save)
+
+        class FakeBody:
+            token = "test-token"
+            base_url = "https://omniroute.josevictor.me"
+            image_model = ""
+            tts_model = ""
+            search_provider = ""
+            model_provider_model = "anthropic/claude-4"
+
+        resp = asyncio.run(api.post_config(FakeBody()))
+        assert resp.success is True
+        # Verify it was saved to the right nested path
+        model_section = saved.get("model", {})
+        omniroute_section = model_section.get("omniroute", {})
+        assert omniroute_section.get("default") == "anthropic/claude-4"
+
+    def test_post_config_validation_requires_token(self):
+        api = load_plugin_api_with_config(mock_config={})
+
+        class FakeBody:
+            token = ""
+            base_url = "https://omniroute.josevictor.me"
+            image_model = ""
+            tts_model = ""
+            search_provider = ""
+            model_provider_model = "anthropic/claude-4"
+
+        resp = asyncio.run(api.post_config(FakeBody()))
+        assert resp.success is False
+        assert "token" in resp.message.lower()
+
+    def test_post_config_validation_requires_base_url(self):
+        api = load_plugin_api_with_config(mock_config={})
+
+        class FakeBody:
+            token = "test-token"
+            base_url = ""
+            image_model = ""
+            tts_model = ""
+            search_provider = ""
+            model_provider_model = "anthropic/claude-4"
+
+        resp = asyncio.run(api.post_config(FakeBody()))
+        assert resp.success is False
+        assert "base url" in resp.message.lower() or "url" in resp.message.lower()
+
+    def test_post_config_no_validation_without_model(self):
+        saved = {}
+
+        def mock_save(c):
+            saved.update(c)
+
+        api = load_plugin_api_with_config(mock_config={}, mock_save=mock_save)
+
+        class FakeBody:
+            token = ""
+            base_url = ""
+            image_model = ""
+            tts_model = ""
+            search_provider = ""
+            model_provider_model = ""
+
+        resp = asyncio.run(api.post_config(FakeBody()))
+        assert resp.success is True
+
+    def test_env_override_detected_for_model_provider(self, monkeypatch):
+        monkeypatch.setenv("OMNIROUTE_MODEL", "test-model")
+        api = load_plugin_api_with_config(mock_config={})
+        resp = asyncio.run(api.get_config())
+        assert resp.env_override.get("model_provider_model") is True
