@@ -47,10 +47,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ test_dashboard_api.py \
-            -v \
-            --tb=short \
-            --junitxml=junit-${{ matrix.python-version }}.xml
+          pytest tests/ test_dashboard_api.py -v --tb=short --junitxml=junit-${{ matrix.python-version }}.xml
 
       - name: Upload test results
         if: always()
@@ -63,6 +60,6 @@ jobs:
       - name: Publish test summary
         if: always()
         run: |
-          echo "## Test results (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Test results (Python ${{ matrix.python-version }})" \u003e\u003e "$GITHUB_STEP_SUMMARY"
           python -m pip install junitparser --quiet
-          junitparser parse junit-${{ matrix.python-version }}.xml >> "$GITHUB_STEP_SUMMARY" || true
+          junitparser parse junit-${{ matrix.python-version }}.xml \u003e\u003e "$GITHUB_STEP_SUMMARY" || true
