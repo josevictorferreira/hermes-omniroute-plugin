@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import io
 from typing import Any, Dict, List, Optional
 
 from agent.image_gen_provider import (
@@ -18,6 +19,7 @@ from agent.image_gen_provider import (
     resolve_aspect_ratio,
     save_b64_image,
     save_url_image,
+    normalize_reference_images,
     success_response,
 )
 
@@ -104,6 +106,40 @@ def _pick_size(supported: Optional[List[str]], aspect: str) -> str:
         if _orientation(s) == "square":
             return s
     return options[0]
+
+
+
+# ---------------------------------------------------------------------------
+# Source-image loading (for image-to-image / edit)
+# ---------------------------------------------------------------------------
+
+
+def _load_image_bytes(ref: str) -> tuple[bytes, str]:
+    """Load image bytes from a URL or local file path.
+
+    Returns ``(data, filename)``. Raises on any network / IO error so the
+    caller can surface a clean error_response.
+    """
+    ref = ref.strip()
+    lower = ref.lower()
+    if lower.startswith(("http://", "https://")):
+        import requests
+
+        resp = requests.get(ref, timeout=60)
+        resp.raise_for_status()
+        name = ref.split("?", 1)[0].rsplit("/", 1)[-1] or "image.png"
+        return resp.content, name
+    if lower.startswith("data:"):
+        header, _, b64 = ref.partition(",")
+        ext = "png"
+        if "image/" in header:
+            ext = header.split("image/", 1)[1].split(";", 1)[0] or "png"
+        return base64.b64decode(b64), f"image.{ext}"
+    # Local file path.
+    with open(ref, "rb") as fh:
+        data = fh.read()
+    name = os.path.basename(ref) or "image.png"
+    return data, name
 
 
 class OmnirouteImageGenProvider(ImageGenProvider):
@@ -196,6 +232,10 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         # Step 5: first available model from registry
         return ids[0] if ids else DEFAULT_MODEL
 
+    def capabilities(self) -> dict[str, Any]:
+        """Advertise text-to-image and image-to-image/edit modalities."""
+        return {"modalities": ["text", "image"], "max_reference_images": 16}
+
     def get_setup_schema(self) -> Dict[str, Any]:
         return {
             "name": "Omniroute",
@@ -214,6 +254,9 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         self,
         prompt: str,
         aspect_ratio: str = DEFAULT_ASPECT_RATIO,
+        *,
+        image_url: Optional[str] = None,
+        reference_image_urls: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         prompt = (prompt or "").strip()
@@ -231,8 +274,8 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         if not token:
             return error_response(
                 error=(
-                    "OMNIROUTE_TOKEN not set. Run `hermes tools` -> Image "
-                    "Generation -> Omniroute to configure, or export "
+                    "OMNIROUTE_TOKEN not set. Run `hermes tools` > Image "
+                    "Generation > Omniroute to configure, or export "
                     "OMNIROUTE_TOKEN."
                 ),
                 error_type="auth_required",
@@ -265,19 +308,47 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         base_url = _resolve_base_url()
         meta = self._fetch_registry().get(model) or {}
         size = _pick_size(meta.get("supported_sizes"), aspect)
-        payload = {"model": model, "prompt": prompt, "size": size}
+
+        # Collect source images for image-to-image / edit.
+        sources: List[str] = []
+        if isinstance(image_url, str) and image_url.strip():
+            sources.append(image_url.strip())
+        refs = normalize_reference_images(reference_image_urls) or []
+        sources.extend(refs)
+        sources = sources[:16]  # cap at 16 source images
+        is_edit = bool(sources)
+        modality = "image" if is_edit else "text"
+
+        common_headers = {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": f"hermes-omniroute-plugin/{_PLUGIN_VERSION}",
+        }
 
         try:
-            resp = requests.post(
-                f"{base_url}/images/generations",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                    "User-Agent": f"hermes-omniroute-plugin/{_PLUGIN_VERSION}",
-                },
-                timeout=120,
-            )
+            if is_edit:
+                edit_payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "size": size,
+                }
+                if image_url and image_url.strip():
+                    edit_payload["image"] = image_url.strip()
+                if refs:
+                    edit_payload["reference_images"] = refs
+                resp = requests.post(
+                    f"{base_url}/images/edits",
+                    json=edit_payload,
+                    headers={**common_headers, "Content-Type": "application/json"},
+                    timeout=120,
+                )
+            else:
+                payload = {"model": model, "prompt": prompt, "size": size}
+                resp = requests.post(
+                    f"{base_url}/images/generations",
+                    json=payload,
+                    headers={**common_headers, "Content-Type": "application/json"},
+                    timeout=120,
+                )
         except Exception as exc:
             logger.debug("Omniroute request failed", exc_info=True)
             return error_response(
@@ -301,9 +372,10 @@ class OmnirouteImageGenProvider(ImageGenProvider):
 
         try:
             data = resp.json().get("data") or []
-        except ValueError:
+        except Exception:
+            logger.debug("Omniroute non-JSON response", exc_info=True)
             return error_response(
-                error="Omniroute returned a non-JSON response",
+                error="Omniroute returned non-JSON response",
                 error_type="empty_response",
                 provider="omniroute",
                 model=model,
@@ -313,7 +385,7 @@ class OmnirouteImageGenProvider(ImageGenProvider):
 
         if not data:
             return error_response(
-                error="Omniroute returned no image data",
+                error="Omniroute returned empty data array",
                 error_type="empty_response",
                 provider="omniroute",
                 model=model,
@@ -326,6 +398,7 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         url = first.get("url")
         revised_prompt = first.get("revised_prompt")
 
+        image_ref = None
         if b64:
             try:
                 image_ref = str(
@@ -345,8 +418,7 @@ class OmnirouteImageGenProvider(ImageGenProvider):
                 image_ref = str(save_url_image(url, prefix="omniroute"))
             except Exception as exc:
                 logger.warning(
-                    "Omniroute image URL %s could not be cached (%s); "
-                    "falling back to bare URL.",
+                    "Omniroute image URL not cached (%s); falling back to bare URL.",
                     url,
                     exc,
                 )
@@ -371,5 +443,6 @@ class OmnirouteImageGenProvider(ImageGenProvider):
             prompt=prompt,
             aspect_ratio=aspect,
             provider="omniroute",
+            modality=modality,
             extra=extra,
         )

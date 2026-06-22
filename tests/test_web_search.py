@@ -11,7 +11,13 @@ import omniroute_plugin as mod
 
 
 class TestSearchPositionMapping(unittest.TestCase):
-    """Test that search() maps positions correctly, especially position=0."""
+    """Test search() maps positions correctly, especially position=0."""
+
+    def setUp(self):
+        os.environ["OMNIROUTE_TOKEN"] = "test-token"
+
+    def tearDown(self):
+        os.environ.pop("OMNIROUTE_TOKEN", None)
 
     def setUp(self):
         super().setUp()

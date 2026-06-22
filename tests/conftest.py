@@ -1,18 +1,21 @@
-"""Shared pytest fixtures/stubs for the Omniroute plugin test-suite.
+"""Shared pytest fixtures/stubs Omniroute plugin test-suite.
 
-The plugin imports Hermes-internal modules (``agent.*``, ``hermes_cli.*``) that
+The plugin imports Hermes-internal modules (`agent.*`, `hermes_cli.*`) that
 are not installed in this repo. We stub them before importing the plugin, then
-load the plugin directory as a proper package (``omniroute_plugin``) — mirroring
-the real Hermes plugin loader, which sets ``__path__`` so relative imports
-(``from ..config import ...``) resolve. Tests then ``import omniroute_plugin``
+load the plugin directory as a proper package (`omniroute_plugin`) — mirroring
+the real Hermes plugin loader, which sets `__path__` so relative imports
+(`from ..config import ...`) resolve. Tests then `import omniroute_plugin`
 or pull symbols from its submodules.
 """
 from __future__ import annotations
+import os
 
 import importlib.util
 import sys
 import types
 from pathlib import Path
+
+os.environ.setdefault("OMNIROUTE_TOKEN", "test-token")
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent
 PKG = "omniroute_plugin"
@@ -22,7 +25,7 @@ def _install_stubs() -> None:
     """Register lightweight stand-ins for Hermes-internal dependencies."""
     def stub(name: str) -> types.ModuleType:
         mod = types.ModuleType(name)
-        mod.__path__ = []  # mark as package so `from agent.x import y` is happy
+        mod.__path__ = []  # mark as package so `agent.x` imports are happy
         sys.modules.setdefault(name, mod)
         return mod
 
@@ -32,11 +35,40 @@ def _install_stubs() -> None:
     igp = stub("agent.image_gen_provider")
     igp.DEFAULT_ASPECT_RATIO = "1:1"
     igp.ImageGenProvider = type("ImageGenProvider", (), {})
-    igp.error_response = lambda *a, **k: {"success": False}
-    igp.resolve_aspect_ratio = lambda *a, **k: "1:1"
-    igp.save_b64_image = lambda *a, **k: None
-    igp.save_url_image = lambda *a, **k: None
-    igp.success_response = lambda *a, **k: {"success": True}
+
+    def _error_response(*, error, error_type="provider_error", provider="", model="", prompt="", aspect_ratio="1:1", **_):
+        return {
+            "success": False,
+            "image": None,
+            "error": error,
+            "error_type": error_type,
+            "model": model,
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "provider": provider,
+        }
+
+    def _success_response(*, image, model, prompt, aspect_ratio, provider, modality="text", extra=None, **_):
+        r = {
+            "success": True,
+            "image": image,
+            "model": model,
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "modality": modality,
+            "provider": provider,
+        }
+        if extra:
+            for k, v in extra.items():
+                r.setdefault(k, v)
+        return r
+
+    igp.error_response = _error_response
+    igp.resolve_aspect_ratio = lambda v="1:1", *a, **k: v if v in ("landscape", "square", "portrait") else "landscape"
+    igp.save_b64_image = lambda *a, **k: Path("/tmp/test_image.png")
+    igp.save_url_image = lambda *a, **k: Path("/tmp/test_image.png")
+    igp.normalize_reference_images = lambda refs=None, *a, **k: list(refs) if refs else []
+    igp.success_response = _success_response
 
     def _normalize_ref(v):
         if v is None:
@@ -76,7 +108,7 @@ def _install_stubs() -> None:
 
 
 def _load_plugin() -> None:
-    """Load the plugin dir as the ``omniroute_plugin`` package (idempotent)."""
+    """Load plugin dir as `omniroute_plugin` package (idempotent)."""
     if PKG in sys.modules:
         return
     spec = importlib.util.spec_from_file_location(
@@ -86,7 +118,7 @@ def _load_plugin() -> None:
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    module.__path__ = [str(PLUGIN_DIR)]  # mirror the real Hermes loader
+    module.__path__ = [str(PLUGIN_DIR)]  # mirror real Hermes loader
     module.__package__ = PKG
     sys.modules[PKG] = module
     spec.loader.exec_module(module)
