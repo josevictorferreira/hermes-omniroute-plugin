@@ -28,7 +28,7 @@ A single Hermes Agent **backend plugin** that routes through Omniroute (an OpenA
 - **No SDK** — raw `requests`, imported lazily *inside* methods (so `is_available()` can report missing dep, and module import never hard-fails).
 - All Hermes-internal imports (`agent.*`, `hermes_cli.*`) only exist inside a Hermes install. Never add a hard dependency on them at import time beyond the existing `from agent.X import Y`.
 - Config helpers return `{}`/`None` on **any** failure (never raise) — resolution chains degrade gracefully.
-- `_version.py` default `"0.2.0"` must track `plugin.yaml`.
+- `_version.py` default `"0.3.0"` must track `plugin.yaml`.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 - **DO NOT** hardcode a global image size map — sizes are per-model via `supported_sizes` (`_pick_size`). Most models reject a global map.
