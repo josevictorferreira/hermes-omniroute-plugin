@@ -64,7 +64,20 @@ def _install_stubs() -> None:
         return r
 
     igp.error_response = _error_response
-    igp.resolve_aspect_ratio = lambda v="1:1", *a, **k: v if v in ("landscape", "square", "portrait") else "landscape"
+    def _resolve_aspect(v="1:1", *a, **kw):
+        if v in ("landscape", "square", "portrait"):
+            return v
+        try:
+            parts = str(v).split(":")
+            w, h = int(parts[0]), int(parts[1])
+            if w > h:
+                return "landscape"
+            if h > w:
+                return "portrait"
+            return "square"
+        except (ValueError, IndexError):
+            return "landscape"
+    igp.resolve_aspect_ratio = _resolve_aspect
     igp.save_b64_image = lambda *a, **k: Path("/tmp/test_image.png")
     igp.save_url_image = lambda *a, **k: Path("/tmp/test_image.png")
     igp.normalize_reference_images = lambda refs=None, *a, **k: list(refs) if refs else []

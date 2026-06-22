@@ -229,7 +229,7 @@ class TestGenerateErrorHandling:
         mock_post.return_value = _json_response({"data": []})
         out = _provider_with_model().generate("a cat")
         assert out["success"] is False
-        assert "no image data" in out.get("error", "").lower()
+        assert "empty data array" in out.get("error", "").lower()
         assert out.get("error_type") == "empty_response"
 
     @patch("omniroute_plugin.providers.image_gen._resolve_token", return_value="sk-test")
