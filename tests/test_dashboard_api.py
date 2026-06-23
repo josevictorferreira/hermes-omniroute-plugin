@@ -84,6 +84,11 @@ def load_plugin_api_with_config(mock_config=None, mock_save=None):
                 self.routes.append(("post", a, fn))
                 return fn
             return decorator
+        def put(self, *a, **kw):
+            def decorator(fn):
+                self.routes.append(("put", fn))
+                return fn
+            return decorator
 
     sys.modules.setdefault("fastapi", types.ModuleType("fastapi"))
     sys.modules["fastapi"].APIRouter = FakeRouter
@@ -517,3 +522,201 @@ class TestModelProviderConfig:
         api = load_plugin_api_with_config(mock_config={})
         resp = asyncio.run(api.get_config())
         assert resp.env_override.get("model_provider_model") is True
+
+# ---------------------------------------------------------------------------
+# Provider settings endpoint tests (api_key + base_url only)
+# ---------------------------------------------------------------------------
+
+class TestSettingsEndpoints:
+    """Tests for the limited OmniRoute provider settings API surface.
+
+    Only ``api_key`` and ``base_url`` are exposed through
+    GET/PUT /settings.  TTS model, image model, search provider and
+    model-provider selection must remain untouched by these endpoints.
+    """
+
+    def test_get_settings_returns_defaults_when_empty(self):
+        api = load_plugin_api_with_config(mock_config={})
+        resp = asyncio.run(api.get_settings())
+        assert resp.settings.api_key == ""
+        assert resp.settings.base_url == "https://omniroute.josevictor.me"
+        assert resp.has_env_override == {"api_key": False, "base_url": False}
+
+    def test_get_settings_reads_from_settings_store(self):
+        api = load_plugin_api_with_config(mock_config={
+            "omniroute": {
+                "settings": {
+                    "api_key": "sk-test-key",
+                    "base_url": "https://custom.example.com/api/v1",
+                }
+            }
+        })
+        resp = asyncio.run(api.get_settings())
+        assert resp.settings.base_url == "https://custom.example.com/api/v1"
+        # API key should be masked in the response.
+        assert resp.settings.api_key.startswith("sk-t")
+        assert resp.settings.api_key.endswith("-key")
+        assert "***" in resp.settings.api_key
+
+    def test_get_settings_env_vars_override_and_flagged(self, monkeypatch):
+        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        monkeypatch.setenv("OMNIROUTE_BASE_URL", "https://env.example.com")
+        api = load_plugin_api_with_config(mock_config={
+            "omniroute": {
+                "settings": {
+                    "api_key": "stored-key",
+                    "base_url": "https://stored.example.com",
+                }
+            }
+        })
+        resp = asyncio.run(api.get_settings())
+        assert resp.settings.api_key.startswith("env-")
+        assert resp.settings.base_url == "https://env.example.com"
+        assert resp.has_env_override == {"api_key": True, "base_url": True}
+
+    def test_put_settings_saves_api_key_and_base_url(self):
+        saved = {}
+        def mock_save(cfg):
+            saved.clear()
+            saved.update(cfg)
+
+        api = load_plugin_api_with_config(mock_config={}, mock_save=mock_save)
+        body = api.OmniRouteProviderSettings(
+            api_key="sk-new-key",
+            base_url="https://new.example.com/api/v1/",
+        )
+        resp = asyncio.run(api.put_settings(body))
+        assert resp.success is True
+        assert resp.message == "Settings saved."
+        assert resp.settings.api_key == "sk-new-key"
+        assert resp.settings.base_url == "https://new.example.com/api/v1"
+
+        # Verify persisted structure.
+        assert saved["omniroute"]["settings"]["api_key"] == "sk-new-key"
+        assert saved["omniroute"]["settings"]["base_url"] == "https://new.example.com/api/v1"
+
+    def test_put_settings_blank_values_preserve_existing(self):
+        saved = {}
+        def mock_save(cfg):
+            saved.clear()
+            saved.update(cfg)
+
+        api = load_plugin_api_with_config(mock_config={
+            "omniroute": {
+                "settings": {
+                    "api_key": "existing-key",
+                    "base_url": "https://existing.example.com",
+                }
+            }
+        }, mock_save=mock_save)
+        body = api.OmniRouteProviderSettings(api_key="", base_url="")
+        resp = asyncio.run(api.put_settings(body))
+        assert resp.success is True
+        assert saved["omniroute"]["settings"]["api_key"] == "existing-key"
+        assert saved["omniroute"]["settings"]["base_url"] == "https://existing.example.com"
+
+    def test_put_settings_rejects_extra_fields(self):
+        api = load_plugin_api_with_config(mock_config={})
+        with pytest.raises(Exception):
+            # Pydantic with ConfigDict(extra="forbid") must reject unknown fields.
+            api.OmniRouteProviderSettings(
+                api_key="sk-key",
+                base_url="https://x.com",
+                tts_model="tts-1",
+            )
+
+    def test_put_settings_does_not_touch_other_config(self):
+        saved = {}
+        def mock_save(cfg):
+            saved.clear()
+            saved.update(cfg)
+
+        api = load_plugin_api_with_config(mock_config={
+            "image_gen": {"omniroute": {"model": "image-model", "token": "legacy-token"}},
+        }, mock_save=mock_save)
+        body = api.OmniRouteProviderSettings(
+            api_key="sk-key",
+            base_url="https://x.com",
+        )
+        resp = asyncio.run(api.put_settings(body))
+        assert resp.success is True
+
+        # Verify the settings were written.
+        assert saved["omniroute"]["settings"]["api_key"] == "sk-key"
+        assert saved["omniroute"]["settings"]["base_url"] == "https://x.com"
+        # Verify existing image_gen config sections are untouched.
+        assert saved["image_gen"]["omniroute"]["model"] == "image-model"
+        assert saved["image_gen"]["omniroute"]["token"] == "legacy-token"
+
+
+class TestSettingsStoreClientResolution:
+    """Tests that config.py resolution helpers read from the new settings store."""
+
+    def test_resolve_base_url_prefers_env_then_settings_then_legacy(self, monkeypatch):
+        from omniroute_plugin.config import _resolve_base_url, _omniroute_config
+        # Patch helpers to avoid reading real config.yaml
+        import omniroute_plugin.config as cfg_mod
+
+        calls = []
+        original_load_settings = cfg_mod._load_settings_config
+        original_omni_config = cfg_mod._omniroute_config
+
+        def fake_settings():
+            calls.append("settings")
+            return {"base_url": "https://settings.example.com/api/v1"}
+
+        def fake_legacy():
+            calls.append("legacy")
+            return {"base_url": "https://legacy.example.com/api/v1"}
+
+        cfg_mod._load_settings_config = fake_settings
+        cfg_mod._omniroute_config = fake_legacy
+
+        try:
+            # Env set → env wins
+            monkeypatch.setenv("OMNIROUTE_BASE_URL", "https://env.example.com/api/v1")
+            assert _resolve_base_url() == "https://env.example.com/api/v1"
+
+            # No env → settings store wins
+            monkeypatch.delenv("OMNIROUTE_BASE_URL", raising=False)
+            assert _resolve_base_url() == "https://settings.example.com/api/v1"
+            assert "settings" in calls
+
+            # No env, empty settings → legacy wins
+            cfg_mod._load_settings_config = lambda: {}
+            calls.clear()
+            assert _resolve_base_url() == "https://legacy.example.com/api/v1"
+            assert "legacy" in calls
+        finally:
+            cfg_mod._load_settings_config = original_load_settings
+            cfg_mod._omniroute_config = original_omni_config
+
+    def test_resolve_token_prefers_env_then_settings_then_legacy(self, monkeypatch):
+        from omniroute_plugin.config import _resolve_token
+        import omniroute_plugin.config as cfg_mod
+
+        original_load_settings = cfg_mod._load_settings_config
+        original_omni_config = cfg_mod._omniroute_config
+
+        def fake_settings():
+            return {"api_key": "settings-key"}
+
+        def fake_legacy():
+            return {"token": "legacy-token"}
+
+        cfg_mod._load_settings_config = fake_settings
+        cfg_mod._omniroute_config = fake_legacy
+
+        try:
+            monkeypatch.setenv("OMNIROUTE_API_KEY", "env-key")
+            assert _resolve_token() == "env-key"
+
+            monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+            monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+            assert _resolve_token() == "settings-key"
+
+            cfg_mod._load_settings_config = lambda: {}
+            assert _resolve_token() == "legacy-token"
+        finally:
+            cfg_mod._load_settings_config = original_load_settings
+            cfg_mod._omniroute_config = original_omni_config

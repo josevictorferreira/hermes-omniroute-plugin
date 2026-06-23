@@ -12,10 +12,27 @@ import os
 
 import importlib.util
 import sys
+import pytest
 import types
 from pathlib import Path
 
 os.environ.setdefault("OMNIROUTE_TOKEN", "test-token")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_hermes_config(monkeypatch):
+    """Save and restore ``hermes_cli.config`` around each test.
+
+    The dashboard API tests replace this module with a test-specific mock
+    (via ``load_plugin_api_with_config``).  Without cleanup, the mock leaks
+    into subsequent provider tests and causes cross-contamination.
+    """
+    original = sys.modules.get("hermes_cli.config")
+    yield
+    if original is not None:
+        sys.modules["hermes_cli.config"] = original
+    else:
+        sys.modules.pop("hermes_cli.config", None)
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent
 PKG = "omniroute_plugin"

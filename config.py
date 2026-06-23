@@ -32,6 +32,40 @@ DEFAULT_MODEL = "antigravity/gemini-3.1-flash-image"
 _FALLBACK_SIZE = "1024x1024"
 
 
+# ---------------------------------------------------------------------------
+# OmniRoute provider settings store
+# ---------------------------------------------------------------------------
+# The settings store lives at config.yaml path ``omniroute.settings`` and
+# holds ONLY two keys: ``api_key`` and ``base_url``.  These are the only
+# values configurable through the OmniRoute provider dashboard endpoints.
+# Everything else (TTS model, image model, search provider, …) continues
+# to come from the existing Hermes global config sections.
+
+_SETTINGS_SECTION = "omniroute"
+_SETTINGS_SUBSECTION = "settings"
+
+
+def _load_settings_config() -> Dict[str, Any]:
+    """Read the ``omniroute.settings`` section from config.yaml ({} on failure).
+
+    This is the *new* settings store introduced for the limited dashboard
+    surface.  It intentionally contains only ``api_key`` and ``base_url``.
+    """
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config()
+        section = cfg.get(_SETTINGS_SECTION) if isinstance(cfg, dict) else None
+        if not isinstance(section, dict):
+            return {}
+        settings = section.get(_SETTINGS_SUBSECTION)
+        return settings if isinstance(settings, dict) else {}
+    except Exception as exc:
+        logger.debug("Could not load omniroute.settings config: %s", exc)
+        return {}
+
+
+
 def _load_config() -> Dict[str, Any]:
     """Read the ``image_gen`` section from config.yaml ({} on any failure)."""
     try:
@@ -67,9 +101,15 @@ def _web_omniroute_config() -> Dict[str, Any]:
 
 
 def _resolve_base_url() -> str:
+    """Resolve base URL: env var \u2192 settings store \u2192 legacy config \u2192 default."""
     env = os.environ.get("OMNIROUTE_BASE_URL")
     if env:
         return env.strip().rstrip("/")
+    # New settings store (introduced for the limited dashboard surface).
+    settings_value = _load_settings_config().get("base_url")
+    if isinstance(settings_value, str) and settings_value.strip():
+        return settings_value.strip().rstrip("/")
+    # Legacy image_gen.omniroute config path (backward compat).
     value = _omniroute_config().get("base_url")
     if isinstance(value, str) and value.strip():
         return value.strip().rstrip("/")
@@ -77,10 +117,16 @@ def _resolve_base_url() -> str:
 
 
 def _resolve_token() -> Optional[str]:
+    """Resolve API token: env var \u2192 settings store \u2192 legacy config."""
     for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
         env = os.environ.get(var)
         if env:
             return env.strip()
+    # New settings store (introduced for the limited dashboard surface).
+    settings_value = _load_settings_config().get("api_key")
+    if isinstance(settings_value, str) and settings_value.strip():
+        return settings_value.strip()
+    # Legacy image_gen.omniroute config path (backward compat).
     value = _omniroute_config().get("token")
     if isinstance(value, str) and value.strip():
         return value.strip()
