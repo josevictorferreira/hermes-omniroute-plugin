@@ -19,7 +19,8 @@
 - **Tests**: Provider unit tests and dashboard integration test fix (f44978f, #15)
 
 ### Changed
-- CI runs on push to any branch (2b1fd61)
+- **Dashboard**: Reduced OmniRoute settings page to API key + base URL only; model/provider selection deferred to main Hermes config
+- runs push anybranch (2b1fd61)
 
 ## [0.2.0] - Previous release
 

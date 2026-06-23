@@ -1,4 +1,4 @@
-/* Omniroute Dashboard Plugin — Configuration Area Styles */
+/* OmniRoute Dashboard Plugin — Settings Styles */
 
 .omniroute-config-page {
   max-width: 760px;
@@ -85,86 +85,76 @@
   line-height: 1.4;
 }
 
+.omniroute-helper-text {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground, #71717a));
+  margin-top: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--muted, 240) 5% 96% / 0.5);
+  border: 1px solid hsl(var(--muted, 240) 6% 90% / 0.5);
+  line-height: 1.5;
+}
+
 .omniroute-save-bar {
   position: sticky;
   bottom: 0;
   display: flex;
-  align-items: center;
   gap: 0.75rem;
+  align-items: center;
   padding: 0.75rem 0;
-  background: hsl(var(--background, 0 0% 100%));
+  background: hsl(var(--background, 0) 0% 100%);
+}
+
+.omniroute-save-btn {
+  min-width: 8rem;
 }
 
 .omniroute-unsaved {
   font-size: 0.8rem;
-  color: hsl(var(--muted-foreground, #71717a));
-  font-style: italic;
-}
-
-.omniroute-toast {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  z-index: 9999;
-  animation: omniroute-toast-in 0.2s ease-out;
-}
-
-.omniroute-toast-success {
-  background: hsl(142 71% 45% / 0.95);
-  color: white;
-}
-
-.omniroute-toast-error {
-  background: hsl(0 84% 60% / 0.95);
-  color: white;
+  color: hsl(var(--warning, 38) 92% 50%);
 }
 
 .omniroute-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3rem;
+  padding: 3rem 1rem;
   color: hsl(var(--muted-foreground, #71717a));
-  font-size: 0.875rem;
+  font-size: 0.9rem;
 }
 
-@keyframes omniroute-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.5rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.omniroute-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Model Provider section */
-.omniroute-model-provider {
-  margin-bottom: 1.25rem;
+.omniroute-toast-success {
+  background: hsl(var(--success, 142) 71% 45% / 0.15);
+  border: 1px solid hsl(var(--success, 142) 71% 45% / 0.4);
+  color: hsl(var(--success, 142) 71% 35%);
 }
 
-.omniroute-model-select-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
+.omniroute-toast-error {
+  background: hsl(0 84% 60% / 0.15);
+  border: 1px solid hsl(0 84% 60% / 0.4);
+  color: hsl(0 84% 50%);
 }
 
-.omniroute-refresh-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
+.omniroute-toast-info {
+  background: hsl(217 91% 60% / 0.15);
+  border: 1px solid hsl(217 91% 60% / 0.4);
+  color: hsl(217 91% 50%);
 }
 
-.omniroute-model-error {
-  font-size: 0.75rem;
-  color: hsl(var(--destructive, 0 84% 60%));
-  margin: 0.375rem 0 0;
-}
-
-.omniroute-current-model {
-  font-style: italic;
+.omniroute-model-error,
+.omniroute-refresh-btn,
+.omniroute-select {
+  display: none;
 }

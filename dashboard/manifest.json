@@ -1,9 +1,9 @@
 {
   "name": "omniroute",
-  "label": "Omniroute",
-  "description": "Omniroute plugin configuration — API token, base URL, model preferences, and search provider settings.",
+  "label": "OmniRoute",
+  "description": "Configure the OmniRoute connection: API key and base URL only. Model selection is managed in the main Hermes settings.",
   "icon": "Router",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "tab": {
     "path": "/omniroute",
     "position": "after:plugins"

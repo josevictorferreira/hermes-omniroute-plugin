@@ -1,12 +1,13 @@
 /**
- * Hermes Omniroute Dashboard Plugin — Configuration Area
+ * Hermes OmniRoute Dashboard Plugin — Limited Settings Surface
  *
- * Dedicated configuration page for the Omniroute plugin.
- * Groups all plugin-related settings (token, base URL, image model,
- * TTS model, search provider) in one cohesive UI.
+ * Exposes only the two values that should be configured from this page:
+ * OmniRoute API key and OmniRoute base URL.  Model selection (TTS model,
+ * image model, default chat model, search provider) is intentionally
+ * omitted here and left to the main Hermes configuration.
  *
- * Plain IIFE — no build step. Uses window.__HERMES_PLUGIN_SDK__ for
- * React + shadcn primitives.
+ * Plain IIFE build step. Uses window.__HERMES_PLUGIN_SDK__ for
+ * React shadcn primitives.
  */
 (function () {
   "use strict";
@@ -19,7 +20,6 @@
   var useState = SDK.hooks.useState;
   var useEffect = SDK.hooks.useEffect;
   var useCallback = SDK.hooks.useCallback;
-  var useRef = SDK.hooks.useRef;
 
   var Card = SDK.components.Card;
   var CardContent = SDK.components.CardContent;
@@ -29,317 +29,213 @@
   var Button = SDK.components.Button;
   var Input = SDK.components.Input;
   var Label = SDK.components.Label;
-  var Separator = SDK.components.Separator;
-
-  // Resolve design-system Select or fall back native <select>.
-  var Select = SDK.components.Select || function FallbackSelect(props) {
-    return h("select", Object.assign({}, props, {
-      className: "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm " + (props.className || ""),
-    }), props.children);
-  };
-  var SelectOption = SDK.components.SelectOption || function FallbackOption(props) {
-    return h("option", props, props.children);
-  };
 
   var fetchJSON = SDK.fetchJSON;
 
-  // ---------------------------------------------------------------------------
-  // Config field definitions — mirrors the audit from the parent task.
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Field definitions — ONLY api_key and base_url are surfaced here.
+  // -------------------------------------------------------------------------
   var FIELDS = [
-    { key: "token", label: "API Token", type: "password", envVar: "OMNIROUTE_TOKEN",
-      description: "Omniroute API token. Set via env var or config.yaml (image_gen.omniroute.token).",
-      placeholder: "sk-..." },
-    { key: "base_url", label: "Base URL", type: "url", envVar: "OMNIROUTE_BASE_URL",
-      description: "Omniroute router base URL.",
-      placeholder: "https://omniroute.josevictor.me" },
-    { key: "image_model", label: "Image Model", type: "text", envVar: "OMNIROUTE_IMAGE_MODEL",
-      description: "Default image generation model. Leave empty for auto-detect.",
-      placeholder: "flux-1.1-pro" },
-    { key: "tts_model", label: "TTS Model", type: "text", envVar: "OMNIROUTE_TTS_MODEL",
-      description: "Default text-to-speech model.",
-      placeholder: "tts-1" },
-    { key: "search_provider", label: "Search Provider", type: "text", envVar: "OMNIROUTE_SEARCH_PROVIDER",
-      description: "Pinned search provider (e.g. tavily-search). Leave empty for Omniroute auto-select.",
-      placeholder: "tavily-search" },
+    {
+      key: "api_key",
+      label: "OmniRoute API Key",
+      type: "password",
+      envVar: "OMNIROUTE_API_KEY",
+      description: "API key OmniRoute uses to authenticate requests.",
+      placeholder: "sk-...",
+    },
+    {
+      key: "base_url",
+      label: "OmniRoute Base URL",
+      type: "url",
+      envVar: "OMNIROUTE_BASE_URL",
+      description: "Root URL of the OmniRoute router endpoint.",
+      placeholder: "https://omniroute.example.com/api/v1",
+    },
   ];
- var MODEL_PROVIDER_FIELD = {
- key: "model_provider_model", label: "Default Model", type: "select", envVar: "OMNIROUTE_MODEL",
- description: "Select the model OmniRoute uses for chat completions. Fetch available models from the API.",
- placeholder: "Select a model...",
- };
 
-  // ---------------------------------------------------------------------------
-  // OmnirouteConfigPage — main component
-  // ---------------------------------------------------------------------------
+  function showToast(setToast, message, type) {
+    setToast({ message: message, type: type });
+    setTimeout(function () {
+      setToast(null);
+    }, 4000);
+  }
+
   function OmnirouteConfigPage() {
-    var _config = useState({});
-    var config = _config[0], setConfig = _config[1];
+    var [settings, setSettings] = useState({ api_key: "", base_url: "" });
+    var [envOverride, setEnvOverride] = useState({});
+    var [loading, setLoading] = useState(true);
+    var [saving, setSaving] = useState(false);
+    var [dirty, setDirty] = useState(false);
+    var [toast, setToast] = useState(null);
 
-    var _envOverride = useState({});
-    var envOverride = _envOverride[0], setEnvOverride = _envOverride[1];
+    var hasEnvOverride = Object.values(envOverride).some(Boolean);
 
-    var _defaults = useState({});
-    var defaults = _defaults[0];
+    var handleChange = useCallback(function (key, value) {
+      setSettings(function (prev) {
+        var next = Object.assign({}, prev);
+        next[key] = value;
+        return next;
+      });
+      setDirty(true);
+    }, []);
 
-    var _loading = useState(true);
-    var loading = _loading[0], setLoading = _loading[1];
-
-    var _saving = useState(false);
-    var saving = _saving[0], setSaving = _saving[1];
-
-    var _toast = useState({ message: "", type: "" });
-    var toast = _toast[0], setToast = _toast[1];
-
-    var _dirty = useState(false);
-    var dirty = _dirty[0], setDirty = _dirty[1];
-
-    var _showToken = useState(false);
-    var showToken = _showToken[0], setShowToken = _showToken[1];
-
- //Model provider state
- var _models = useState([]);
- var models = _models[0], setModels = _models[1];
- var _modelsLoading = useState(false);
- var modelsLoading = _modelsLoading[0], setModelsLoading = _modelsLoading[1];
- var _modelsError = useState("");
- var modelsError = _modelsError[0], setModelsError = _modelsError[1];
-    // Track whether any env var overrides are active.
-    var hasEnvOverride = Object.values(envOverride).some(function (v) { return v; });
-
-    function showToast(message, type) {
-      setToast({ message: message, type: type });
-      setTimeout(function () { setToast({ message: "", type: "" }); }, 3000);
-    }
-
-
- function fetchModels(){
- setModelsLoading(true);
- setModelsError("");
- fetchJSON("/api/plugins/omniroute/models")
- .then(function(data){
- setModels(data.models || []);
- setModelsError(data.error || "");
- })
- .catch(function(){
- setModels([]);
- setModelsError("Failed to fetch models.");
- })
- .finally(function(){
- setModelsLoading(false);
- });
- }
-    // Load config on mount.
-    useEffect(function () {
+    var handleLoad = useCallback(function () {
       setLoading(true);
-      fetchJSON("/api/plugins/omniroute/config")
+      fetchJSON("/api/plugins/omniroute/settings")
         .then(function (data) {
-          setConfig(data.config || {});
-          setEnvOverride(data.env_override || {});
-          setDefaults(data.defaults || {});
+          setSettings(data.settings || { api_key: "", base_url: "" });
+          setEnvOverride(data.has_env_override || {});
           setDirty(false);
         })
         .catch(function () {
-          showToast("Failed to load configuration", "error");
+          showToast(setToast, "Failed to load OmniRoute settings.", "error");
         })
         .finally(function () {
           setLoading(false);
         });
     }, []);
 
-
- //Fetch models when config is loaded (if we have a token).
- useEffect(function(){
- if(!loading && config.token){
- fetchModels();
- }
- }, [loading]);
-    function handleChange(key, value) {
-      var next = Object.assign({}, config);
-      next[key] = value;
-      setConfig(next);
-      setDirty(true);
-    }
-
-    function handleSave() {
+    var handleSave = useCallback(function () {
       setSaving(true);
-      fetchJSON("/api/plugins/omniroute/config", {
-        method: "POST",
+      fetchJSON("/api/plugins/omniroute/settings", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          api_key: (settings.api_key || "").trim(),
+          base_url: (settings.base_url || "").trim(),
+        }),
       })
         .then(function (data) {
           if (data.success) {
-            showToast("Configuration saved!", "success");
+            showToast(setToast, "OmniRoute settings saved.", "success");
+            if (data.settings) {
+              setSettings(data.settings);
+            }
             setDirty(false);
           } else {
-            showToast(data.message || "Save failed", "error");
+            showToast(setToast, data.message || "Save failed.", "error");
           }
         })
         .catch(function () {
-          showToast("Save failed — network error", "error");
+          showToast(setToast, "Save failed — network error.", "error");
         })
         .finally(function () {
           setSaving(false);
         });
-    }
+    }, [settings]);
 
-    function handleReset(key) {
-      var next = Object.assign({}, config);
-      next[key] = defaults[key] || "";
-      setConfig(next);
-      setDirty(true);
-    }
-
-    // ---- Render helpers ----
+    useEffect(function () {
+      handleLoad();
+    }, [handleLoad]);
 
     function renderField(field) {
-      var value = config[field.key] || "";
-      var envActive = envOverride[field.key];
-      var isPassword = field.type === "password";
-      var inputType = isPassword && !showToken ? "password" : "text";
-
-      return h("div", { key: field.key, className: "omniroute-field" },
-        h("div", { className: "omniroute-field-header" },
-          h(Label, { className: "omniroute-label" }, field.label),
-          h("span", { className: "omniroute-env-var" },
-            field.envVar,
-            envActive ? h(Badge, { variant: "warning", className: "omniroute-badge-env" }, "ENV override") : null
+      var isOverridden = !!envOverride[field.key];
+      return h(
+        "div",
+        { key: field.key, className: "omniroute-field" },
+        h(
+          "div",
+          { className: "omniroute-field-header" },
+          h(Label, { htmlFor: "omniroute-" + field.key }, field.label),
+          h(
+            "span",
+            { className: "omniroute-env-var" },
+            isOverridden
+              ? h(Badge, { variant: "warning", className: "omniroute-badge-env" }, "env")
+              : null,
+            field.envVar
           )
         ),
-        h("div", { className: "omniroute-field-input-row" },
-          h(Input, {
-            type: inputType,
-            value: value,
-            placeholder: field.placeholder,
-            className: "omniroute-input",
-            onChange: function (e) { handleChange(field.key, e.target.value); },
-          }),
-          isPassword ? h(Button, {
-            variant: "ghost", size: "sm",
-            onClick: function () { setShowToken(!showToken); },
-          }, showToken ? "Hide" : "Show") : null
-        ),
+        h(Input, {
+          id: "omniroute-" + field.key,
+          type: field.type,
+          value: settings[field.key] || "",
+          placeholder: field.placeholder,
+          disabled: isOverridden || loading,
+          onChange: function (e) {
+            handleChange(field.key, e.target.value);
+          },
+          className: "omniroute-input",
+        }),
         h("p", { className: "omniroute-field-desc" }, field.description)
       );
     }
 
-
- function renderModelProvider(){
- var currentValue = config[MODEL_PROVIDER_FIELD.key] || "";
- var envActive = envOverride[MODEL_PROVIDER_FIELD.key];
- var hasModels = models.length > 0;
-
- return h("div", { className: "omniroute-model-provider" },
- // Model dropdown
- h("div", { className: "omniroute-field-header" },
- h(Label, { className: "omniroute-label" }, MODEL_PROVIDER_FIELD.label),
- h("span", { className: "omniroute-env-var" },
- MODEL_PROVIDER_FIELD.envVar,
- envActive ? h(Badge, { variant: "warning", className: "omniroute-badge-env" }, "ENV override") : null
- )
- ),
- h("div", { className: "omniroute-model-select-row" },
- h(Select, {
- value: currentValue,
- className: "omniroute-input",
- onChange: function(e){ handleChange(MODEL_PROVIDER_FIELD.key, e.target.value); },
- },
- h("option", { value: "" }, MODEL_PROVIDER_FIELD.placeholder),
- hasModels ? models.map(function(m){
- return h(SelectOption, { key: m.id, value: m.id }, m.name || m.id);
- }) : null
- ),
- h(Button, {
- variant: "ghost", size: "sm",
- onClick: fetchModels,
- disabled: modelsLoading,
- className: "omniroute-refresh-btn",
- }, modelsLoading ? "Loading..." : "Refresh")
- ),
- // Error message
- modelsError ? h("p", { className: "omniroute-model-error" }, modelsError) : null,
- // Description
- h("p", { className: "omniroute-field-desc" }, MODEL_PROVIDER_FIELD.description)
- );
- }
     if (loading) {
-      return h("div", { className: "omniroute-loading" }, "Loading configuration...");
+      return h("div", { className: "omniroute-loading" }, "Loading OmniRoute settings...");
     }
 
-    return h("div", { className: "omniroute-config-page" },
-      // Page header
-      h("div", { className: "omniroute-page-header" },
-        h("h1", null, "Omniroute Configuration"),
-        h("p", { className: "omniroute-subtitle" },
-          "Manage all Omniroute plugin settings from one place."
+    return h(
+      "div",
+      { className: "omniroute-config-page" },
+      h(
+        "div",
+        { className: "omniroute-page-header" },
+        h("h1", null, "OmniRoute"),
+        h(
+          "p",
+          { className: "omniroute-subtitle" },
+          "Configure the OmniRoute connection. Model selection is handled in the main Hermes settings."
         )
       ),
 
-      // Env override warning
-      hasEnvOverride ? h("div", { className: "omniroute-env-warning" },
-        h(Badge, { variant: "warning" }, "Environment variables active"),
-        h("span", null, "Some config values are overridden by environment variables. ",
-          "To edit them here, remove the env var from your shell or config.")
-      ) : null,
+      hasEnvOverride
+        ? h(
+            "div",
+            { className: "omniroute-env-warning" },
+            h(Badge, { variant: "warning" }, "Environment variables active"),
+            h(
+              "span",
+              null,
+              "Some values are being overridden by environment variables. Remove the env var to edit them here."
+            )
+          )
+        : null,
 
-      // Config form
-      h(Card, { className: "omniroute-card" },
-        h(CardHeader, null,
-          h(CardTitle, null, "Connection Settings")
+      h(
+        Card,
+        { className: "omniroute-card" },
+        h(CardHeader, null, h(CardTitle, null, "Connection")),
+        h(
+          CardContent,
+          null,
+          FIELDS.map(renderField),
+          h(
+            "div",
+            { className: "omniroute-helper-text" },
+            "TTS model, image model, default chat model, and search provider are configured in the main Hermes settings (Settings → TTS / Image / Web / Model)."
+          )
+        )
+      ),
+
+      h(
+        "div",
+        { className: "omniroute-save-bar" },
+        h(
+          Button,
+          {
+            onClick: handleSave,
+            disabled: !dirty || saving,
+            className: "omniroute-save-btn",
+          },
+          saving ? "Saving..." : "Save"
         ),
-        h(CardContent, null,
-          renderField(FIELDS[0]),  // token
-          renderField(FIELDS[1]),  // base_url
-        )
-      ),
-
-      h(Card, { className: "omniroute-card" },
-        h(CardHeader, null,
-          h(CardTitle, null, "Model Preferences")
-        ),
-        h(CardContent, null,
-          renderField(FIELDS[2]),  // image_model
-          renderField(FIELDS[3]),  // tts_model
-        )
-      ),
-
-
- // Model Provider
- h(Card, { className: "omniroute-card" },
- h(CardHeader, null,
- h(CardTitle, null, "Model Provider")
- ),
- h(CardContent, null,
- renderModelProvider()
- )
- ),
-      h(Card, { className: "omniroute-card" },
-        h(CardHeader, null,
-          h(CardTitle, null, "Web Search")
-        ),
-        h(CardContent, null,
-          renderField(FIELDS[4]),  // search_provider
-        )
-      ),
-
-      // Save bar
-      h("div", { className: "omniroute-save-bar" },
-        h(Button, {
-          onClick: handleSave,
-          disabled: !dirty || saving,
-          className: "omniroute-save-btn",
-        }, saving ? "Saving..." : "Save Configuration"),
         dirty ? h("span", { className: "omniroute-unsaved" }, "Unsaved changes") : null
       ),
 
-      // Toast
-      toast.message ? h("div", {
-        className: "omniroute-toast omniroute-toast-" + toast.type,
-      }, toast.message) : null
+      toast && toast.message
+        ? h(
+            "div",
+            {
+              className:
+                "omniroute-toast omniroute-toast-" + (toast.type || "info"),
+            },
+            toast.message
+          )
+        : null
     );
   }
 
-  // Register the plugin tab component.
   window.__HERMES_PLUGINS__.register("omniroute", OmnirouteConfigPage);
 })();
