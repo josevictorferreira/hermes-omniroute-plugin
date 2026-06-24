@@ -25,7 +25,7 @@ def _read_plugin_version() -> str:
                     return m.group(1).strip().strip("\"'")
     except Exception:
         logger.debug("Failed to read version from plugin.yaml", exc_info=True)
-    return "0.3.0"
+        return "0.3.5"
 
 
 _PLUGIN_VERSION = _read_plugin_version()
