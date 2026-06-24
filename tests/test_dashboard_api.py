@@ -803,7 +803,7 @@ class TestSettingsStoreClientResolution:
     """Tests that config.py resolution helpers read from the new settings store."""
 
     def test_resolve_base_url_prefers_env_then_settings_then_legacy(self, monkeypatch):
-        from omniroute_plugin.config import _resolve_base_url, _omniroute_config
+        from omniroute_plugin.config import _resolve_base_url
         # Patch helpers to avoid reading real config.yaml
         import omniroute_plugin.config as cfg_mod
 

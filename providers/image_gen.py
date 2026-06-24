@@ -9,7 +9,6 @@ from __future__ import annotations
 import base64
 import logging
 import os
-import io
 from typing import Any, Dict, List, Optional
 
 from agent.image_gen_provider import (

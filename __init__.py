@@ -1,12 +1,15 @@
 """Omniroute plugin — ``register(ctx)`` entry point.
 
 Routes Hermes through Omniroute, an OpenAI-compatible model router, using raw
-``requests`` (no extra SDK). One plugin, three providers registered from a
+``requests`` (no extra SDK). One plugin, five providers registered from a
+single ``register(ctx)``:
 single ``register(ctx)``:
 
-* image generation :class:`OmnirouteImageGenProvider` (``POST /v1/images/generations``)
-* web search       :class:`OmnirouteWebSearchProvider` (``POST /v1/search``)
-* text-to-speech   :class:`OmnirouteTTSProvider`       (``POST /v1/audio/speech``)
+* image generation     :class:`OmnirouteImageGenProvider` (``POST /v1/images/generations``)
+* web search + extract :class:`OmnirouteWebSearchProvider` (``POST /v1/search`` + ``POST /v1/web/fetch``)
+* text-to-speech       :class:`OmnirouteTTSProvider`       (``POST /v1/audio/speech``)
+* speech-to-text       :class:`OmnirouteSTTProvider`       (``POST /v1/audio/transcriptions``)
+* video generation :class:`OmnirouteVideoGenProvider` (``POST /v1/videos/generations``)
 
 Shared credential/endpoint resolution (first hit wins):
 
@@ -22,10 +25,12 @@ at the plugin dir root — is unchanged.
 from __future__ import annotations
 
 from ._version import __version__
-from .config import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_TTS_MODEL
+from .config import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_STT_MODEL, DEFAULT_TTS_MODEL, DEFAULT_VIDEO_MODEL
 from .providers.image_gen import OmnirouteImageGenProvider
+from .providers.stt import OmnirouteSTTProvider
 from .providers.tts import OmnirouteTTSProvider
 from .providers.web_search import OmnirouteWebSearchProvider
+from .providers.video_gen import OmnirouteVideoGenProvider
 
 __all__ = [
     "register",
@@ -33,14 +38,20 @@ __all__ = [
     "OmnirouteImageGenProvider",
     "OmnirouteWebSearchProvider",
     "OmnirouteTTSProvider",
+    "OmnirouteSTTProvider",
+    "OmnirouteVideoGenProvider",
     "DEFAULT_BASE_URL",
     "DEFAULT_MODEL",
     "DEFAULT_TTS_MODEL",
+    "DEFAULT_STT_MODEL",
+    "DEFAULT_VIDEO_MODEL",
 ]
 
 
 def register(ctx) -> None:
-    """Plugin entry point — register Omniroute image-gen, web-search and TTS providers."""
+    """Plugin entry point: register Omniroute image-gen, web-search, TTS, STT, video-gen providers."""
     ctx.register_image_gen_provider(OmnirouteImageGenProvider())
     ctx.register_web_search_provider(OmnirouteWebSearchProvider())
     ctx.register_tts_provider(OmnirouteTTSProvider())
+    ctx.register_transcription_provider(OmnirouteSTTProvider())
+    ctx.register_video_gen_provider(OmnirouteVideoGenProvider())

@@ -118,6 +118,44 @@ def _install_stubs() -> None:
     ttsp = stub("agent.tts_provider")
     ttsp.TTSProvider = type("TTSProvider", (), {})
 
+    tcp = stub("agent.transcription_provider")
+    tcp.TranscriptionProvider = type("TranscriptionProvider", (), {})
+
+    vgp = stub("agent.video_gen_provider")
+    vgp.VideoGenProvider = type("VideoGenProvider", (), {})
+
+    def _v_error_response(*, error, error_type="provider_error", provider="", model="", prompt="", aspect_ratio="", **_):
+        return {
+            "success": False,
+            "video": None,
+            "error": error,
+            "error_type": error_type,
+            "model": model,
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "provider": provider,
+        }
+
+    def _v_success_response(*, video, model, prompt, modality="text", aspect_ratio="", duration=0, provider, extra=None, **_):
+        r = {
+            "success": True,
+            "video": video,
+            "model": model,
+            "prompt": prompt,
+            "modality": modality,
+            "aspect_ratio": aspect_ratio,
+            "duration": duration,
+            "provider": provider,
+        }
+        if extra:
+            for k, v in extra.items():
+                r.setdefault(k, v)
+        return r
+
+    vgp.error_response = _v_error_response
+    vgp.success_response = _v_success_response
+    vgp.save_bytes_video = lambda raw, *a, **k: Path("/tmp/test_video.mp4")
+
     hcfg = stub("hermes_cli.config")
     hcfg.load_config = lambda: {}
 

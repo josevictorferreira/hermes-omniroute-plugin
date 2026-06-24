@@ -2,12 +2,14 @@
 
 Hermes Agent backends route through
 [Omniroute](https://omniroute.josevictor.me) OpenAI-compatible model router.
-One plugin, four capabilities:
+One plugin, six capabilities:
 
 - **Model provider**      `POST /v1/chat/completions` (Hermes AIAgent routing)
 - **Image generation**    `POST /v1/images/generations`
 - **Web search**          `POST /v1/search`
+- **Web extract**         `POST /v1/web/fetch` (URL scraping)
 - **Text-to-speech**      `POST /v1/audio/speech`
+- **Speech-to-text**      `POST /v1/audio/transcriptions`
 
 ## Install
 
@@ -19,7 +21,7 @@ git clone <this-repo> ~/.hermes/plugins/omniroute
 # or: cp -r . ~/.hermes/plugins/omniroute
 ```
 
-`register()` registers all three: image-gen, web-search, and TTS providers.
+`register()` registers all four: image-gen, web-search, TTS, and STT providers.
 
 The model provider lives in `model_provider/` and must be installed separately:
 
@@ -39,7 +41,9 @@ export OMNIROUTE_TOKEN=...            # required (OMNIROUTE_API_KEY also accepte
 export OMNIROUTE_BASE_URL=...         # optional, default https://omniroute.josevictor.me/api/v1
 export OMNIROUTE_IMAGE_MODEL=... optional, overrides config image model
 export OMNIROUTE_SEARCH_PROVIDER=... optional, pin search provider e.g. tavily-search
+export OMNIROUTE_FETCH_PROVIDER=... optional, pin extract/scrape provider e.g. tavily-search
 export OMNIROUTE_TTS_MODEL=... optional, overrides config TTS model (default: openai/tts-1)
+export OMNIROUTE_STT_MODEL=... optional, overrides config STT model (default: deepgram/nova-3)
 ```
 
 Default model when none is configured: `antigravity/gemini-3.1-flash-image`.
@@ -116,10 +120,33 @@ web:
     search_provider: tavily-search   # optional; else Omniroute auto-selects
 ```
 
-Search is search-only (no extract). Omniroute auto-selects among its configured
-providers (Serper, Brave, Exa, Tavily, Perplexity, Google PSE, SearXNG, …) unless
-pinned `OMNIROUTE_SEARCH_PROVIDER` / `web.omniroute.search_provider`. Per-result
-snippets capped 500 chars.
+Omniroute auto-selects among its configured providers (Serper, Brave, Exa,
+Tavily, Perplexity, Google PSE, SearXNG, …) unless pinned
+`OMNIROUTE_SEARCH_PROVIDER` / `web.omniroute.search_provider`. Per-result
+snippets capped 500 chars. URL scraping is handled by the separate **Web
+extract** capability below.
+
+### Web extract (URL scraping)
+
+Select Omniroute as the extract backend in `~/.hermes/config.yaml` to scrape
+full page content from URLs:
+
+```yaml
+web:
+  extract_backend: omniroute   # or web.backend as a fallback for both search/extract
+  omniroute:
+    fetch_provider: tavily-search   # optional; else Omniroute auto-selects
+```
+
+The same `OmnirouteWebSearchProvider` services both `web_search` and
+`web_extract` (it advertises `supports_extract()`); no separate registration is
+needed. Extract wraps `POST /v1/web/fetch`, which takes one URL per call — the
+provider loops over the requested URLs and returns one result per URL
+(`{url, title, content, raw_content, metadata}`), with `content` as page
+markdown and `provider`/`links`/`screenshot_url` folded into `metadata`. A
+per-URL failure is reported in that URL's `error` field rather than aborting the
+whole batch. Pin a provider with `OMNIROUTE_FETCH_PROVIDER` /
+`web.omniroute.fetch_provider`.
 
 ### Text-to-speech
 
@@ -144,6 +171,30 @@ token is only required at synthesis time. Token resolution mirrors the
 shared Omniroute credentials: `OMNIROUTE_TOKEN` / `OMNIROUTE_API_KEY` env,
 `tts.omniroute.token` config, falling back to `image_gen.omniroute.token`.
 Unsupported audio formats are clamped to `mp3`.
+
+### Speech-to-text
+
+Hermes calls speech-to-text "transcription". Select Omniroute as the STT
+backend in `~/.hermes/config.yaml`:
+
+```yaml
+stt:
+  provider: omniroute
+  omniroute:
+    model: deepgram/nova-3   # optional; OMNIROUTE_STT_MODEL env overrides
+    # token: <token>         # optional, prefer OMNIROUTE_API_KEY
+```
+
+Transcribes via OpenAI-compatible `POST /v1/audio/transcriptions` (multipart
+upload: `{file, model, language, response_format}`) and returns the transcript
+text. Known transcription models: `deepgram/nova-3`, `assemblyai/best`. Like
+TTS, the provider registers and appears in `hermes tools` without a token; the
+token is only required at transcribe time, and resolves from `OMNIROUTE_API_KEY`
+/ `OMNIROUTE_TOKEN` env, `stt.omniroute.token` config, then the shared Omniroute
+credentials.
+
+> Note: a model only works if the Omniroute instance has credentials for that
+> transcription provider — failure surfaces at transcribe time.
 
 ## Usage
 

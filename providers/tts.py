@@ -13,7 +13,6 @@ from agent.tts_provider import TTSProvider
 
 from .._version import _PLUGIN_VERSION
 from ..config import (
-    DEFAULT_TTS_MODEL,
     _resolve_base_url,
     _resolve_tts_model,
     _resolve_tts_token,

@@ -3,7 +3,7 @@
 **Generated:** 2026-06-20 20:47 | **Commit:** 869caf0 | **Branch:** main
 
 ## OVERVIEW
-A single Hermes Agent **backend plugin** that routes through Omniroute (an OpenAI-compatible model router) using raw `requests`. The repo root *is* the plugin: `register(ctx)` registers **three** providers — image generation, web search, text-to-speech.
+A single Hermes Agent **backend plugin** that routes through Omniroute (an OpenAI-compatible model router) using raw `requests`. The repo root *is* the plugin: `register(ctx)` registers **five** providers — image generation, web search, text-to-speech, speech-to-text, video generation.
 
 ## STRUCTURE
 ```

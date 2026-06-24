@@ -10,7 +10,6 @@ import json
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 import omniroute_plugin as plugin
 from omniroute_plugin.config import _SEARCH_DESC_LIMIT

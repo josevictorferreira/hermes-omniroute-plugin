@@ -11,14 +11,10 @@ from __future__ import annotations
 
 import base64
 import json
-import os
-import struct
-import zlib
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import omniroute_plugin as plugin
 from omniroute_plugin.providers.image_gen import OmnirouteImageGenProvider
 
 

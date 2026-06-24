@@ -19,6 +19,16 @@ DEFAULT_BASE_URL = "https://omniroute.josevictor.me/api/v1"
 # OMNIROUTE_TTS_MODEL env var or tts.omniroute.model config key.
 DEFAULT_TTS_MODEL = "openai/tts-1"
 
+# Default STT (transcription) model when none configured. Set to a provider
+# known-configured on the target instance. Users override via
+# OMNIROUTE_STT_MODEL env var or stt.omniroute.model config key.
+DEFAULT_STT_MODEL = "deepgram/nova-3"
+
+# Default video model when none configured. Set to a provider/model known
+# configured on the target instance. Users override via OMNIROUTE_VIDEO_MODEL
+# env var or video_gen.omniroute.model config key.
+DEFAULT_VIDEO_MODEL = "runway/gen-3"
+
 
 
 # Cap per-result search snippet length (some providers return full page text).
@@ -174,6 +184,74 @@ def _resolve_tts_token() -> Optional[str]:
     return _resolve_token()
 
 
+def _stt_omniroute_config() -> Dict[str, Any]:
+    """Read ``stt.omniroute`` section from config.yaml ({} on any failure)."""
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config()
+        stt = cfg.get("stt") if isinstance(cfg, dict) else None
+        if not isinstance(stt, dict):
+            return {}
+        sub = stt.get("omniroute")
+        return sub if isinstance(sub, dict) else {}
+    except Exception as exc:
+        logger.debug("Could not load stt.omniroute config: %s", exc)
+        return {}
+
+
+def _resolve_stt_model(model: Optional[str] = None) -> Optional[str]:
+    """Resolve STT model: explicit arg > OMNIROUTE_STT_MODEL env > stt.omniroute.model > DEFAULT_STT_MODEL."""
+    if model and model.strip():
+        return model.strip()
+    env = os.environ.get("OMNIROUTE_STT_MODEL")
+    if env and env.strip():
+        return env.strip()
+    value = _stt_omniroute_config().get("model")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return DEFAULT_STT_MODEL
+
+
+def _resolve_stt_token() -> Optional[str]:
+    """Resolve STT token: env > stt.omniroute.token > shared Omniroute credentials."""
+    for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
+        env = os.environ.get(var)
+        if env:
+            return env.strip()
+    value = _stt_omniroute_config().get("token")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return _resolve_token()
+
+def _video_omniroute_config() -> Dict[str, Any]:
+    """Read ``video_gen.omniroute`` section of config.yaml ({} on any failure)."""
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config()
+        video = cfg.get("video_gen") if isinstance(cfg, dict) else None
+        if not isinstance(video, dict):
+            return {}
+        sub = video.get("omniroute")
+        return sub if isinstance(sub, dict) else {}
+    except Exception as exc:
+        logger.debug("Could not load video_gen.omniroute config: %s", exc)
+        return {}
+
+
+def _resolve_video_model(model: Optional[str] = None) -> Optional[str]:
+    """Resolve video model: explicit arg -> OMNIROUTE_VIDEO_MODEL env -> video_gen.omniroute.model -> DEFAULT_VIDEO_MODEL."""
+    if model and model.strip():
+        return model.strip()
+    env = os.environ.get("OMNIROUTE_VIDEO_MODEL")
+    if env and env.strip():
+        return env.strip()
+    value = _video_omniroute_config().get("model")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return DEFAULT_VIDEO_MODEL
+
 def _resolve_search_provider() -> Optional[str]:
     """Optional pinned Omniroute search provider (else Omniroute auto-selects).
 
@@ -191,6 +269,27 @@ def _resolve_search_provider() -> Optional[str]:
         return value.strip()
     # Fallback: image_gen.omniroute.search_provider (original code path).
     value = _omniroute_config().get("search_provider")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _resolve_fetch_provider() -> Optional[str]:
+    """Optional pinned Omniroute fetch provider (else Omniroute auto-selects).
+
+    Mirrors :func:`_resolve_search_provider` but for ``POST /web/fetch``.
+    Resolution order:
+      1. ``OMNIROUTE_FETCH_PROVIDER`` env var
+      2. ``web.omniroute.fetch_provider`` (documented config path)
+      3. ``image_gen.omniroute.fetch_provider`` (legacy fallback)
+    """
+    env = os.environ.get("OMNIROUTE_FETCH_PROVIDER")
+    if env:
+        return env.strip()
+    value = _web_omniroute_config().get("fetch_provider")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    value = _omniroute_config().get("fetch_provider")
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None

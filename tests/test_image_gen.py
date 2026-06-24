@@ -6,7 +6,6 @@ Merged from the former ``test_omniroute.py`` (size/orientation validation) and
 import os
 from unittest.mock import patch
 
-import pytest
 
 import omniroute_plugin as plugin
 from omniroute_plugin.providers.image_gen import _is_valid_size, _pick_size
@@ -161,8 +160,7 @@ class TestPrecedence:
 # Image editing (image-to-image) tests
 # ---------------------------------------------------------------------------
 
-from io import BytesIO
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 class TestCapabilities:
