@@ -38,8 +38,8 @@ A single Hermes Agent **backend plugin** that routes through Omniroute (an OpenA
 ## COMMANDS
 ```bash
 nix develop                                          # dev shell: python3 + requests + pyyaml (NO pytest)
-# Run tests (flake lacks pytest; system python lacks requests — use an ad-hoc shell with both):
-nix-shell -p 'python3.withPackages(ps:[ps.requests ps.pytest])' --run 'python3 -m pytest tests -q'
+# Run tests (flake lacks pytest; system python lacks requests/httpx — use an ad-hoc shell with all three)
+nix-shell -p 'python3.withPackages(ps:[ps.requests ps.httpx ps.pytest])' --run 'python3 -m pytest tests -q'
 ```
 
 ## NOTES
