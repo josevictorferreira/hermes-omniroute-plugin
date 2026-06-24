@@ -16,7 +16,7 @@ import pytest
 import types
 from pathlib import Path
 
-os.environ.setdefault("OMNIROUTE_TOKEN", "test-token")
+os.environ.setdefault("OMNIROUTE_API_KEY", "test-token")
 
 
 @pytest.fixture(autouse=True)

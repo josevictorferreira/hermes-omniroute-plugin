@@ -14,7 +14,7 @@ cp -r model_provider/ ~/.hermes/plugins/model-providers/omniroute/
 Set your API key (env preferred):
 
 ```bash
-export OMNIROUTE_TOKEN=...         # or OMNIROUTE_API_KEY
+export OMNIROUTE_API_KEY=...
 export OMNIROUTE_BASE_URL=...     # optional, default https://omniroute.josevictor.me/api/v1
 ```
 

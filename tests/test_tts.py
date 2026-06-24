@@ -42,7 +42,7 @@ class TestProviderIdentity:
         """is_available works without a token — only checks requests importable."""
         # Ensure no token in env
         env = {k: v for k, v in os.environ.items()
-               if k not in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY")}
+               if k not in ("OMNIROUTE_API_KEY",)}
         with patch.dict(os.environ, env, clear=True):
             assert _make_provider().is_available() is True
 
@@ -124,17 +124,9 @@ class TestModelResolution:
 # ---------------------------------------------------------------------------
 
 class TestTokenResolution:
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-123"}, clear=True)
-    def test_env_token(self):
-        assert _resolve_tts_token() == "tok-123"
-
     @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "key-456"}, clear=True)
-    def test_api_key_alias(self):
+    def test_api_key_env(self):
         assert _resolve_tts_token() == "key-456"
-
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok", "OMNIROUTE_API_KEY": "key"}, clear=True)
-    def test_token_takes_precedence_over_api_key(self):
-        assert _resolve_tts_token() == "tok"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_no_token_returns_none(self):
@@ -156,7 +148,7 @@ class TestSetupSchema:
     def test_schema_env_vars_has_omniroute_token(self):
         schema = _make_provider().get_setup_schema()
         keys = [ev["key"] for ev in schema["env_vars"]]
-        assert "OMNIROUTE_TOKEN" in keys
+        assert "OMNIROUTE_API_KEY" in keys
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +156,7 @@ class TestSetupSchema:
 # ---------------------------------------------------------------------------
 
 class TestSynthesize:
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_success_writes_audio_and_returns_path(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response(content=b"AUDIO-BYTES")
@@ -177,7 +169,7 @@ class TestSynthesize:
         with open(out, "rb") as f:
             assert f.read() == b"AUDIO-BYTES"
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_payload_has_required_fields(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -193,7 +185,7 @@ class TestSynthesize:
         # speed must NOT be present when not explicitly provided
         assert "speed" not in payload
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_speed_included_when_provided(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -203,7 +195,7 @@ class TestSynthesize:
         _, kwargs = mock_post.call_args
         assert kwargs["json"]["speed"] == 1.5
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_custom_voice_and_model(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -217,7 +209,7 @@ class TestSynthesize:
         assert kwargs["json"]["voice"] == "nova"
         assert kwargs["json"]["model"] == "openai/tts-1-hd"
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_format_clamped_to_mp3_for_unsupported(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -227,7 +219,7 @@ class TestSynthesize:
         _, kwargs = mock_post.call_args
         assert kwargs["json"]["response_format"] == "mp3"
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_format_opus_passed_through(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -237,7 +229,7 @@ class TestSynthesize:
         _, kwargs = mock_post.call_args
         assert kwargs["json"]["response_format"] == "opus"
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_posts_to_audio_speech_endpoint(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -247,7 +239,7 @@ class TestSynthesize:
         url = mock_post.call_args[0][0]
         assert url.endswith("/audio/speech")
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_authorization_header(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response()
@@ -270,10 +262,10 @@ class TestSynthesize:
     @patch.dict(os.environ, {}, clear=True)
     def test_no_token_raises_runtime_error(self, tmp_path):
         provider = _make_provider()
-        with pytest.raises(RuntimeError, match="OMNIROUTE_TOKEN"):
+        with pytest.raises(RuntimeError, match="OMNIROUTE_API_KEY"):
             provider.synthesize("Hello", str(tmp_path / "o.mp3"))
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_http_error_raises_runtime_error(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response(
@@ -283,7 +275,7 @@ class TestSynthesize:
         with pytest.raises(RuntimeError, match="HTTP 500"):
             provider.synthesize("Hello", str(tmp_path / "o.mp3"))
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_empty_audio_response_raises(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response(content=b"")
@@ -291,7 +283,7 @@ class TestSynthesize:
         with pytest.raises(RuntimeError, match="empty audio"):
             provider.synthesize("Hello", str(tmp_path / "o.mp3"))
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_network_exception_raises_runtime_error(self, mock_post, tmp_path):
         mock_post.side_effect = ConnectionError("network down")
@@ -299,7 +291,7 @@ class TestSynthesize:
         with pytest.raises(RuntimeError, match="request failed"):
             provider.synthesize("Hello", str(tmp_path / "o.mp3"))
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.post")
     def test_creates_parent_directory(self, mock_post, tmp_path):
         mock_post.return_value = _mock_response(content=b"X")
@@ -314,7 +306,7 @@ class TestSynthesize:
 # ---------------------------------------------------------------------------
 
 class TestListModels:
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.get")
     def test_filters_tts_models(self, mock_get):
         mock_get.return_value = _mock_response_with_json({
@@ -338,25 +330,25 @@ class TestListModels:
     def test_no_token_returns_empty(self):
         assert _make_provider().list_models() == []
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.get")
     def test_http_error_returns_empty(self, mock_get):
         mock_get.return_value = _mock_response(ok=False, status_code=401)
         assert _make_provider().list_models() == []
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.get")
     def test_network_error_returns_empty(self, mock_get):
         mock_get.side_effect = ConnectionError("down")
         assert _make_provider().list_models() == []
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.get")
     def test_empty_data_returns_empty(self, mock_get):
         mock_get.return_value = _mock_response_with_json({"data": []})
         assert _make_provider().list_models() == []
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "tok-test"}, clear=True)
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "tok-test"}, clear=True)
     @patch("requests.get")
     def test_list_models_uses_models_endpoint(self, mock_get):
         mock_get.return_value = _mock_response_with_json({"data": []})

@@ -56,7 +56,7 @@ class OmnirouteWebSearchProvider(WebSearchProvider):
         if not token:
             return {
                 "success": False,
-                "error": "OMNIROUTE_TOKEN not set. Export OMNIROUTE_TOKEN or OMNIROUTE_API_KEY.",
+                "error": "OMNIROUTE_API_KEY not set. Export OMNIROUTE_API_KEY.",
             }
 
         try:
@@ -130,7 +130,7 @@ class OmnirouteWebSearchProvider(WebSearchProvider):
 
         token = _resolve_token()
         if not token:
-            err = "OMNIROUTE_TOKEN not set. Export OMNIROUTE_TOKEN or OMNIROUTE_API_KEY."
+            err = "OMNIROUTE_API_KEY not set. Export OMNIROUTE_API_KEY."
             return [self._extract_error(u, err) for u in urls]
 
         try:

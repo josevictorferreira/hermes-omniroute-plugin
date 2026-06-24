@@ -134,8 +134,8 @@ class OmnirouteVideoGenProvider(VideoGenProvider):
         if not token:
             return error_response(
                 error=(
-                    "Omniroute token not configured. Set OMNIROUTE_TOKEN or "
-                    "OMNIROUTE_API_KEY env var, or omniroute.settings.api_key."
+                    "Omniroute token not configured. Set OMNIROUTE_API_KEY "
+                    "env var, or omniroute.settings.api_key."
                 ),
                 error_type="auth_error",
                 provider="omniroute",

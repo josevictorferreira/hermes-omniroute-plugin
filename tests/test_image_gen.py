@@ -192,7 +192,7 @@ class TestGenerateRouting:
     """generate() must route to /images/edits when source images are provided,
     and to /images/generations when no source images are given."""
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")
@@ -214,7 +214,7 @@ class TestGenerateRouting:
         assert payload["image"] == "https://example.com/photo.png"
         assert payload["prompt"] == "make blue"
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")
@@ -238,7 +238,7 @@ class TestGenerateRouting:
         called_url = mock_post.call_args[0][0]
         assert "/images/edits" in called_url
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")
     def test_routes_to_generations_when_no_images(self, mock_post, mock_save):
@@ -253,7 +253,7 @@ class TestGenerateRouting:
         assert "json" in mock_post.call_args.kwargs
         assert "files" not in mock_post.call_args.kwargs
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")
@@ -273,7 +273,7 @@ class TestGenerateRouting:
         assert payload["model"]
         assert payload["size"]
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")
     def test_edit_sets_modality_image(self, mock_post, mock_save):
@@ -292,7 +292,7 @@ class TestGenerateRouting:
 class TestEditErrorHandling:
     """Error paths for the image-editing flow."""
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("requests.post")
     def test_edit_payload_forwards_local_image_url(self, mock_post, mock_load):
@@ -307,7 +307,7 @@ class TestEditErrorHandling:
         assert payload["image"] == "/nonexistent/file.png"
         assert payload["prompt"] == "edit"
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("requests.post")
     def test_edit_http_error_returns_error(self, mock_post, mock_load):
@@ -319,7 +319,7 @@ class TestEditErrorHandling:
 
         assert result["success"] is False
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("requests.post")
     def test_edit_network_exception_returns_error(self, mock_post, mock_load):
@@ -331,7 +331,7 @@ class TestEditErrorHandling:
 
         assert result["success"] is False
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("requests.post")
     def test_edit_empty_response_returns_error(self, mock_post, mock_load):
@@ -385,7 +385,7 @@ class TestLoadImageBytes:
 class TestEditMultipleImages:
     """Test that multiple source images are handled correctly."""
 
-    @patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+    @patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
     @patch("omniroute_plugin.providers.image_gen._load_image_bytes")
     @patch("omniroute_plugin.providers.image_gen.save_b64_image")
     @patch("requests.post")

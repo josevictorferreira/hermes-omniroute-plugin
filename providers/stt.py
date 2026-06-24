@@ -45,7 +45,7 @@ class OmnirouteSTTProvider(TranscriptionProvider):
     ``DEFAULT_STT_MODEL``.
 
     Token resolution mirrors the shared Omniroute service credentials
-    (``_resolve_stt_token``): ``OMNIROUTE_TOKEN`` / ``OMNIROUTE_API_KEY`` env,
+    (``_resolve_stt_token``): ``OMNIROUTE_API_KEY`` env,
     ``stt.omniroute.token`` config, then the shared Omniroute token.
     """
 
@@ -110,8 +110,8 @@ class OmnirouteSTTProvider(TranscriptionProvider):
                 "success": False,
                 "transcript": "",
                 "error": (
-                    "OMNIROUTE_API_KEY not set. Export OMNIROUTE_API_KEY or "
-                    "OMNIROUTE_TOKEN, or set stt.omniroute.token in config.yaml."
+                    "OMNIROUTE_API_KEY not set. Export OMNIROUTE_API_KEY, "
+                    "or set stt.omniroute.token in config.yaml."
                 ),
                 "provider": self.name,
             }

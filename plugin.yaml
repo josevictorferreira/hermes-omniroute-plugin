@@ -8,4 +8,3 @@ provides_web_providers:
 requires_env:
   - OMNIROUTE_API_KEY
   - OMNIROUTE_BASE_URL
-  - OMNIROUTE_TOKEN

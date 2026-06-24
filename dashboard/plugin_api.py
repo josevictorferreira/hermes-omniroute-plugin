@@ -5,7 +5,7 @@ Mounted under ``/api/plugins/omniroute/`` by the dashboard plugin system.
 Provides a cohesive read/write surface for all Omniroute configuration
 variables, mapping each env variable to its canonical config.yaml path:
 
-  OMNIROUTE_TOKEN        → image_gen.omniroute.token
+  OMNIROUTE_API_KEY      → image_gen.omniroute.token
   OMNIROUTE_BASE_URL     → image_gen.omniroute.base_url
   OMNIROUTE_IMAGE_MODEL  → image_gen.omniroute.model
   OMNIROUTE_TTS_MODEL    → tts.omniroute.model
@@ -68,7 +68,7 @@ _CONFIG_KEYS = {
 }
 
 _ENV_VARS = {
-    "token": "OMNIROUTE_TOKEN",
+    "token": "OMNIROUTE_API_KEY",
     "base_url": "OMNIROUTE_BASE_URL",
     "image_model": "OMNIROUTE_IMAGE_MODEL",
     "tts_model": "OMNIROUTE_TTS_MODEL",
@@ -88,7 +88,7 @@ _SETTINGS_CONFIG_KEYS = {
 
 # Env vars still win over the settings store.
 _SETTINGS_ENV_VARS = {
-    "api_key": ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"),
+    "api_key": "OMNIROUTE_API_KEY",
     "base_url": "OMNIROUTE_BASE_URL",
 }
 
@@ -225,10 +225,9 @@ def _resolve_base_url(config: Dict[str, Any]) -> str:
 
 def _resolve_token(config: Dict[str, Any]) -> Optional[str]:
     """Resolve the Omniroute token: env > settings store > legacy config."""
-    for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
-        env = os.environ.get(var)
-        if env and env.strip():
-            return env.strip()
+    env = os.environ.get("OMNIROUTE_API_KEY")
+    if env and env.strip():
+        return env.strip()
     val = _get_config_value(config, "omniroute.settings.api_key", default="")
     if isinstance(val, str) and val.strip():
         return val.strip()
@@ -264,7 +263,7 @@ async def get_models(capability: str = "chat") -> ModelsResponse:
     token = _resolve_token(config)
 
     if not token:
-        return ModelsResponse(models=[], error="API token required. Set OMNIROUTE_TOKEN or configure it below.")
+        return ModelsResponse(models=[], error="API token required. Set OMNIROUTE_API_KEY or configure it below.")
 
     cap = (capability or "chat").lower().strip()
     path = "/v1/images/generations" if cap == "image" else "/v1/models"
@@ -338,7 +337,7 @@ async def post_config(body: OmnirouteConfig) -> ConfigSaveResponse:
         if not body.token.strip() and not _resolve_token(config):
             return ConfigSaveResponse(
                 success=False,
-                message="An API token is required before selecting models. Set the OmniRoute API key (or OMNIROUTE_TOKEN).",
+                message="An API token is required before selecting models. Set the OmniRoute API key (OMNIROUTE_API_KEY).",
             )
 
     try:
@@ -379,10 +378,9 @@ def _load_settings_config() -> Dict[str, Any]:
 
 def _resolve_settings_api_key(config: Dict[str, Any]) -> Optional[str]:
     """Resolve API key for the settings endpoint: env → settings store."""
-    for var in _SETTINGS_ENV_VARS["api_key"]:
-        env = os.environ.get(var)
-        if env:
-            return env.strip()
+    env = os.environ.get(_SETTINGS_ENV_VARS["api_key"])
+    if env:
+        return env.strip()
     value = config.get("api_key")
     if isinstance(value, str) and value.strip():
         return value.strip()
@@ -420,8 +418,7 @@ async def get_settings() -> SettingsResponse:
         masked_key = "***" + api_key[-4:]
 
     has_env = {
-        "api_key": bool(os.environ.get(_SETTINGS_ENV_VARS["api_key"][0]))
-            or bool(os.environ.get(_SETTINGS_ENV_VARS["api_key"][1])),
+        "api_key": bool(os.environ.get(_SETTINGS_ENV_VARS["api_key"])),
         "base_url": bool(os.environ.get(_SETTINGS_ENV_VARS["base_url"])),
     }
 

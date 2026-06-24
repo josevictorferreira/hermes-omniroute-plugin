@@ -37,7 +37,7 @@ This registers OmniRoute as a model provider for `hermes chat` / `AIAgent` routi
 Set the token (env preferred — config-file tokens are stored in plaintext):
 
 ```bash
-export OMNIROUTE_TOKEN=...            # required (OMNIROUTE_API_KEY also accepted)
+export OMNIROUTE_API_KEY=...          # required
 export OMNIROUTE_BASE_URL=...         # optional, default https://omniroute.josevictor.me/api/v1
 export OMNIROUTE_IMAGE_MODEL=... optional, overrides config image model
 export OMNIROUTE_SEARCH_PROVIDER=... optional, pin search provider e.g. tavily-search
@@ -69,7 +69,7 @@ model:
   omniroute:
     base_url: https://omniroute.josevictor.me/api/v1   # optional
     model: openai/gpt-4o-mini                         # optional
-    # token: <token>                                  # optional, prefer OMNIROUTE_TOKEN
+    # token: <token>                                  # optional, prefer OMNIROUTE_API_KEY
 ```
 
 The model list is fetched live from `GET /v1/models` on the first use
@@ -95,7 +95,7 @@ image_gen:
   omniroute:
     base_url: https://omniroute.josevictor.me/api/v1   # optional
     model: <model-id>                                  # optional
-    # token: <token>                                   # optional, prefer OMNIROUTE_TOKEN
+    # token: <token>                                   # optional, prefer OMNIROUTE_API_KEY
 ```
 
 The model picker is populated from Omniroute's image registry
@@ -157,7 +157,7 @@ tts:
  provider: omniroute
  omniroute:
    model: openai/tts-1      # optional; OMNIROUTE_TTS_MODEL env overrides
-   token: <token>           # optional, prefer OMNIROUTE_TOKEN
+   token: <token>           # optional, prefer OMNIROUTE_API_KEY
 ```
 
 Synthesizes via OpenAI-compatible `POST /v1/audio/speech` payload
@@ -168,7 +168,7 @@ filters TTS-capable entries (ids containing `tts`, `speech`, `audio`).
 
 The provider registers and appears in `hermes tools` without a token; the
 token is only required at synthesis time. Token resolution mirrors the
-shared Omniroute credentials: `OMNIROUTE_TOKEN` / `OMNIROUTE_API_KEY` env,
+shared Omniroute credentials: `OMNIROUTE_API_KEY` env,
 `tts.omniroute.token` config, falling back to `image_gen.omniroute.token`.
 Unsupported audio formats are clamped to `mp3`.
 
@@ -190,7 +190,7 @@ upload: `{file, model, language, response_format}`) and returns the transcript
 text. Known transcription models: `deepgram/nova-3`, `assemblyai/best`. Like
 TTS, the provider registers and appears in `hermes tools` without a token; the
 token is only required at transcribe time, and resolves from `OMNIROUTE_API_KEY`
-/ `OMNIROUTE_TOKEN` env, `stt.omniroute.token` config, then the shared Omniroute
+env, `stt.omniroute.token` config, then the shared Omniroute
 credentials.
 
 > Note: a model only works if the Omniroute instance has credentials for that

@@ -4,7 +4,7 @@ Registers OmniRoute as a model provider, enabling chat/completion routing
 through OmniRoute's OpenAI-compatible API (https://omniroute.josevictor.me).
 
 Credential resolution (first hit wins):
-- Token:    OMNIROUTE_TOKEN / OMNIROUTE_API_KEY env
+- Token:    OMNIROUTE_API_KEY env
 - Base URL: OMNIROUTE_BASE_URL env, then default
 
 Installation: copy this directory to
@@ -43,10 +43,7 @@ class OmniRouteProfile(ProviderProfile):
         import httpx
 
         base_url = getattr(self, "base_url", DEFAULT_BASE_URL)
-        token = api_key or (
-            os.environ.get("OMNIROUTE_TOKEN", "")
-            or os.environ.get("OMNIROUTE_API_KEY", "")
-        )
+        token = api_key or os.environ.get("OMNIROUTE_API_KEY", "")
 
         headers: Dict[str, str] = {}
         if token:
@@ -76,7 +73,7 @@ _profile = OmniRouteProfile(
     display_name="OmniRoute",
     description="OmniRoute — OpenAI-compatible model router",
     signup_url="https://omniroute.josevictor.me",
-    env_vars=("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY", "OMNIROUTE_BASE_URL"),
+    env_vars=("OMNIROUTE_API_KEY", "OMNIROUTE_BASE_URL"),
     base_url=os.environ.get("OMNIROUTE_BASE_URL", DEFAULT_BASE_URL),
     auth_type="api_key",
     fallback_models=_FALLBACK_MODELS,

@@ -44,7 +44,7 @@ nix-shell -p 'python3.withPackages(ps:[ps.requests ps.httpx ps.pytest])' --run '
 
 ## NOTES
 - `DEFAULT_MODEL` (`antigravity/gemini-3.1-flash-image`) is set to a provider known-configured on the target instance.
-- Token: env `OMNIROUTE_TOKEN`/`OMNIROUTE_API_KEY` preferred over config-file (plaintext).
+- Token: env `OMNIROUTE_API_KEY` preferred over config-file (plaintext).
 - `.omo/` `.omc/` `.claude/` are gitignored tool state — ignore them.
 
 ## References

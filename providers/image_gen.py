@@ -242,8 +242,8 @@ class OmnirouteImageGenProvider(ImageGenProvider):
             "tag": "OpenAI-compatible image generation via the Omniroute router",
             "env_vars": [
                 {
-                    "key": "OMNIROUTE_TOKEN",
-                    "prompt": "Omniroute API token (or set OMNIROUTE_API_KEY)",
+                    "key": "OMNIROUTE_API_KEY",
+                    "prompt": "Omniroute API token",
                     "url": "https://omniroute.josevictor.me",
                 },
             ],
@@ -273,9 +273,9 @@ class OmnirouteImageGenProvider(ImageGenProvider):
         if not token:
             return error_response(
                 error=(
-                    "OMNIROUTE_TOKEN not set. Run `hermes tools` > Image "
+                    "OMNIROUTE_API_KEY not set. Run `hermes tools` > Image "
                     "Generation > Omniroute to configure, or export "
-                    "OMNIROUTE_TOKEN."
+                    "OMNIROUTE_API_KEY."
                 ),
                 error_type="auth_required",
                 provider="omniroute",

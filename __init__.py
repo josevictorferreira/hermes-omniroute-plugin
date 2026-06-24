@@ -13,7 +13,7 @@ single ``register(ctx)``:
 
 Shared credential/endpoint resolution (first hit wins):
 
-* token    ``OMNIROUTE_TOKEN`` / ``OMNIROUTE_API_KEY`` env, then ``image_gen.omniroute.token`` config
+* token    ``OMNIROUTE_API_KEY`` env, then ``image_gen.omniroute.token`` config
 * base_url ``OMNIROUTE_BASE_URL`` env, then ``image_gen.omniroute.base_url`` config, then ``DEFAULT_BASE_URL``
 
 The heavy lifting lives in submodules: :mod:`config` (constants + resolution),

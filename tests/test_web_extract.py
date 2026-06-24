@@ -58,7 +58,7 @@ class TestExtractValidation:
         out = _provider().extract(["https://a.test"])
         assert len(out) == 1
         assert out[0]["url"] == "https://a.test"
-        assert "token" in out[0]["error"].lower()
+        assert "omniroute_api_key" in out[0]["error"].lower()
 
     @patch("omniroute_plugin.providers.web_search._resolve_token", return_value="tok")
     def test_missing_requests_package(self, _mock_token):

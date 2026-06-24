@@ -69,7 +69,7 @@ def provider() -> OmnirouteImageGenProvider:
 
 @pytest.fixture(autouse=True)
 def _env_token(monkeypatch):
-    monkeypatch.setenv("OMNIROUTE_TOKEN", "test-token-42")
+    monkeypatch.setenv("OMNIROUTE_API_KEY", "test-token-42")
 
 
 # ---------------------------------------------------------------------------
@@ -244,8 +244,8 @@ class TestImageEditAuthAndErrors:
     """Verify auth, missing deps, and API error paths."""
 
     def test_missing_token_returns_auth_error(self, monkeypatch):
-        """Without OMNIROUTE_TOKEN the provider must reject immediately."""
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        """Without OMNIROUTE_API_KEY the provider must reject immediately."""
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
 
         provider = OmnirouteImageGenProvider()

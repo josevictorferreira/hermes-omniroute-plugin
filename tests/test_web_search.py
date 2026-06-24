@@ -14,14 +14,14 @@ class TestSearchPositionMapping(unittest.TestCase):
     """Test search() maps positions correctly, especially position=0."""
 
     def setUp(self):
-        os.environ["OMNIROUTE_TOKEN"] = "test-token"
+        os.environ["OMNIROUTE_API_KEY"] = "test-token"
 
     def tearDown(self):
-        os.environ.pop("OMNIROUTE_TOKEN", None)
+        os.environ.pop("OMNIROUTE_API_KEY", None)
 
     def setUp(self):
         super().setUp()
-        patcher = patch.dict(os.environ, {"OMNIROUTE_TOKEN": "test-token"})
+        patcher = patch.dict(os.environ, {"OMNIROUTE_API_KEY": "test-token"})
         self.addCleanup(patcher.stop)
         patcher.start()
 

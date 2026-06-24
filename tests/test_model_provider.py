@@ -37,7 +37,7 @@ class TestRegistration:
         assert "omniroute.josevictor.me" in registered_profile.base_url
 
     def test_profile_env_vars(self, registered_profile):
-        assert "OMNIROUTE_TOKEN" in registered_profile.env_vars
+        assert "OMNIROUTE_API_KEY" in registered_profile.env_vars
         assert "OMNIROUTE_API_KEY" in registered_profile.env_vars
         assert "OMNIROUTE_BASE_URL" in registered_profile.env_vars
 
@@ -95,7 +95,7 @@ class TestFetchModels:
         assert headers.get("Authorization") == "Bearer my-secret-token"
 
     def test_fetch_models_uses_env_token(self, registered_profile):
-        """fetch_models falls back to OMNIROUTE_TOKEN env var."""
+        """fetch_models falls back to OMNIROUTE_API_KEY env var."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": [{"id": "m"}]}
         mock_response.raise_for_status = MagicMock()
@@ -105,7 +105,7 @@ class TestFetchModels:
         mock_client.__exit__ = MagicMock(return_value=False)
         mock_client.get = MagicMock(return_value=mock_response)
 
-        with patch.dict("os.environ", {"OMNIROUTE_TOKEN": "env-token"}):
+        with patch.dict("os.environ", {"OMNIROUTE_API_KEY": "env-token"}):
             with patch("httpx.Client", return_value=mock_client):
                 registered_profile.fetch_models()
 

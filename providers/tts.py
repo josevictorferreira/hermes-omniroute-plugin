@@ -46,7 +46,7 @@ class OmnirouteTTSProvider(TTSProvider):
     ``DEFAULT_TTS_MODEL``.
 
     Token resolution mirrors the shared Omniroute service credentials
-    (``_resolve_tts_token``): ``OMNIROUTE_TOKEN`` / ``OMNIROUTE_API_KEY`` env,
+    (``_resolve_tts_token``): ``OMNIROUTE_API_KEY`` env,
     ``tts.omniroute.token`` config, then the image-gen ``image_gen.omniroute.token``
     fallback.
     """
@@ -138,7 +138,7 @@ class OmnirouteTTSProvider(TTSProvider):
             "tag": "OpenAI-compatible TTS via Omniroute",
             "env_vars": [
                 {
-                    "key": "OMNIROUTE_TOKEN",
+                    "key": "OMNIROUTE_API_KEY",
                     "prompt": "Omniroute API token",
                     "url": "https://omniroute.josevictor.me",
                 }
@@ -168,8 +168,8 @@ class OmnirouteTTSProvider(TTSProvider):
         token = _resolve_tts_token()
         if not token:
             raise RuntimeError(
-                "OMNIROUTE_TOKEN not set. Export OMNIROUTE_TOKEN or "
-                "OMNIROUTE_API_KEY, or set tts.omniroute.token in config.yaml."
+                "OMNIROUTE_API_KEY not set. Export OMNIROUTE_API_KEY, "
+                "or set tts.omniroute.token in config.yaml."
             )
 
         try:

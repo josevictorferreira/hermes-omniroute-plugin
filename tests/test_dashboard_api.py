@@ -27,7 +27,6 @@ pytest.importorskip("pydantic")
 def _clear_omniroute_env(monkeypatch):
     """Ensure dashboard API tests don't inherit OMNIROUTE env vars from host."""
     for _key in [
-        "OMNIROUTE_TOKEN",
         "OMNIROUTE_API_KEY",
         "OMNIROUTE_BASE_URL",
         "OMNIROUTE_IMAGE_MODEL",
@@ -155,7 +154,7 @@ class TestGetConfig:
         assert resp.config["search_provider"] == "tavily"
 
     def test_env_override_detected(self, monkeypatch):
-        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        monkeypatch.setenv("OMNIROUTE_API_KEY", "env-token")
         monkeypatch.setenv("OMNIROUTE_BASE_URL", "https://env.example.com")
         api = load_plugin_api_with_config(mock_config={})
         resp = asyncio.run(api.get_config())
@@ -282,7 +281,7 @@ class TestGetModels:
         return api
 
     def test_returns_error_when_no_token(self, monkeypatch):
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         api = self._load_with_config(mock_config={})
         resp = asyncio.run(api.get_models())
@@ -290,7 +289,7 @@ class TestGetModels:
         assert "token" in resp.error.lower()
 
     def test_returns_error_when_no_token_config_only(self, monkeypatch):
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         api = self._load_with_config(mock_config={
             "image_gen": {"omniroute": {"base_url": "https://omniroute.example.com"}},
@@ -300,7 +299,7 @@ class TestGetModels:
         assert "token" in resp.error.lower()
 
     def test_returns_error_when_api_unreachable(self, monkeypatch):
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         api = self._load_with_config(mock_config={
             "image_gen": {"omniroute": {"token": "test-token"}},
@@ -315,7 +314,7 @@ class TestGetModels:
         assert "refused" in resp.error or "Failed" in resp.error
 
     def test_returns_models_on_success(self, monkeypatch):
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         api = self._load_with_config(mock_config={
             "image_gen": {"omniroute": {"token": "test-token"}},
@@ -354,7 +353,7 @@ class TestGetModels:
         assert resp.error == ""
 
     def test_models_sorted_by_id(self, monkeypatch):
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         api = self._load_with_config(mock_config={
             "image_gen": {"omniroute": {"token": "test-token"}},
@@ -391,7 +390,7 @@ class TestGetModels:
 
     def test_uses_env_token(self, monkeypatch):
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
-        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        monkeypatch.setenv("OMNIROUTE_API_KEY", "env-token")
         api = self._load_with_config(mock_config={})
 
         def fake_urlopen(*args, **kwargs):
@@ -403,7 +402,7 @@ class TestGetModels:
         assert "token required" not in resp.error.lower()
 
     def test_uses_env_base_url(self, monkeypatch):
-        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        monkeypatch.setenv("OMNIROUTE_API_KEY", "env-token")
         monkeypatch.setenv("OMNIROUTE_BASE_URL", "https://custom.example.com")
 
         called_url = []
@@ -444,7 +443,7 @@ class TestModelCapabilities:
     """GET /models?capability=… routes to the right catalog and filters it."""
 
     def _api(self, monkeypatch):
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         sys.modules.pop("omniroute_dashboard_api", None)
         return load_plugin_api_with_config(
@@ -510,7 +509,7 @@ class TestModelCapabilities:
 
     def test_models_use_settings_store_token(self, monkeypatch):
         """A token saved via /settings (omniroute.settings.api_key) is used."""
-        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
         sys.modules.pop("omniroute_dashboard_api", None)
         api = load_plugin_api_with_config(
@@ -526,7 +525,7 @@ class TestModelCapabilities:
     def test_settings_base_url_normalized_no_double_v1(self, monkeypatch):
         """A base_url ending in /api/v1 must not yield /api/v1/v1/models."""
         monkeypatch.delenv("OMNIROUTE_BASE_URL", raising=False)
-        monkeypatch.setenv("OMNIROUTE_TOKEN", "t")
+        monkeypatch.setenv("OMNIROUTE_API_KEY", "t")
         sys.modules.pop("omniroute_dashboard_api", None)
         api = load_plugin_api_with_config(
             mock_config={"omniroute": {"settings": {"base_url": "https://x.com/api/v1"}}}
@@ -709,7 +708,7 @@ class TestSettingsEndpoints:
         assert "***" in resp.settings.api_key
 
     def test_get_settings_env_vars_override_and_flagged(self, monkeypatch):
-        monkeypatch.setenv("OMNIROUTE_TOKEN", "env-token")
+        monkeypatch.setenv("OMNIROUTE_API_KEY", "env-token")
         monkeypatch.setenv("OMNIROUTE_BASE_URL", "https://env.example.com")
         api = load_plugin_api_with_config(mock_config={
             "omniroute": {
@@ -862,7 +861,7 @@ class TestSettingsStoreClientResolution:
             assert _resolve_token() == "env-key"
 
             monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
-            monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+            monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
             assert _resolve_token() == "settings-key"
 
             cfg_mod._load_settings_config = lambda: {}

@@ -40,7 +40,7 @@ class TestSearchValidation:
     def test_no_token(self, _mock_token):
         out = _provider().search("cats")
         assert out["success"] is False
-        assert "token" in out["error"].lower()
+        assert "omniroute_api_key" in out["error"].lower()
 
     @patch("omniroute_plugin.providers.web_search._resolve_token", return_value="tok")
     def test_missing_requests_package(self, _mock_token):

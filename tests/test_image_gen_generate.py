@@ -79,7 +79,7 @@ class TestGenerateValidation:
     def test_no_token(self, _mock_token):
         out = _provider_with_model().generate("a cat")
         assert out["success"] is False
-        assert "token" in out.get("error", "").lower()
+        assert "omniroute_api_key" in out.get("error", "").lower()
         assert out.get("error_type") == "auth_required"
 
     @patch("omniroute_plugin.providers.image_gen._resolve_token", return_value="tok")

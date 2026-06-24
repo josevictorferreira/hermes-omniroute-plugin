@@ -128,10 +128,9 @@ def _resolve_base_url() -> str:
 
 def _resolve_token() -> Optional[str]:
     """Resolve API token: env var \u2192 settings store \u2192 legacy config."""
-    for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
-        env = os.environ.get(var)
-        if env:
-            return env.strip()
+    env = os.environ.get("OMNIROUTE_API_KEY")
+    if env:
+        return env.strip()
     # New settings store (introduced for the limited dashboard surface).
     settings_value = _load_settings_config().get("api_key")
     if isinstance(settings_value, str) and settings_value.strip():
@@ -174,10 +173,9 @@ def _resolve_tts_model(model: Optional[str] = None) -> Optional[str]:
 
 def _resolve_tts_token() -> Optional[str]:
     """Resolve TTS token: env > tts.omniroute.token > image_gen.omniroute.token (shared service)."""
-    for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
-        env = os.environ.get(var)
-        if env:
-            return env.strip()
+    env = os.environ.get("OMNIROUTE_API_KEY")
+    if env:
+        return env.strip()
     value = _tts_omniroute_config().get("token")
     if isinstance(value, str) and value.strip():
         return value.strip()
@@ -215,10 +213,9 @@ def _resolve_stt_model(model: Optional[str] = None) -> Optional[str]:
 
 def _resolve_stt_token() -> Optional[str]:
     """Resolve STT token: env > stt.omniroute.token > shared Omniroute credentials."""
-    for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
-        env = os.environ.get(var)
-        if env:
-            return env.strip()
+    env = os.environ.get("OMNIROUTE_API_KEY")
+    if env:
+        return env.strip()
     value = _stt_omniroute_config().get("token")
     if isinstance(value, str) and value.strip():
         return value.strip()
