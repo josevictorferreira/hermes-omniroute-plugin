@@ -1,10 +1,12 @@
 /**
- * Hermes OmniRoute Dashboard Plugin — Limited Settings Surface
+ * Hermes OmniRoute Dashboard Plugin — Connection + Model Selection
  *
- * Exposes only the two values that should be configured from this page:
- * OmniRoute API key and OmniRoute base URL.  Model selection (TTS model,
- * image model, default chat model, search provider) is intentionally
- * omitted here and left to the main Hermes configuration.
+ * Surfaces two groups of settings:
+ *   1. Connection (persisted via /settings): OmniRoute API key + base URL.
+ *   2. Models (persisted via /config): image-generation model, TTS model and
+ *      the default provider (chat) model.  Each model field is a searchable
+ *      input backed by a <datalist> whose options are fetched live from
+ *      /models?capability=image|tts|chat so users pick instead of typing.
  *
  * Plain IIFE build step. Uses window.__HERMES_PLUGIN_SDK__ for
  * React shadcn primitives.
@@ -32,10 +34,12 @@
 
   var fetchJSON = SDK.fetchJSON;
 
+  var API = "/api/plugins/omniroute";
+
   // -------------------------------------------------------------------------
-  // Field definitions — ONLY api_key and base_url are surfaced here.
+  // Connection fields — persisted via the /settings endpoint (masked + env).
   // -------------------------------------------------------------------------
-  var FIELDS = [
+  var CONNECTION_FIELDS = [
     {
       key: "api_key",
       label: "OmniRoute API Key",
@@ -54,6 +58,37 @@
     },
   ];
 
+  // -------------------------------------------------------------------------
+  // Model fields — persisted via the /config endpoint. ``capability`` selects
+  // which catalog feeds the dropdown.
+  // -------------------------------------------------------------------------
+  var MODEL_FIELDS = [
+    {
+      key: "image_model",
+      label: "Image Generation Model",
+      capability: "image",
+      envVar: "OMNIROUTE_IMAGE_MODEL",
+      description: "Model used by the image-generation provider.",
+      placeholder: "openai/gpt-image-2",
+    },
+    {
+      key: "tts_model",
+      label: "Text-to-Speech Model",
+      capability: "tts",
+      envVar: "OMNIROUTE_TTS_MODEL",
+      description: "Model used by the TTS provider (/audio/speech).",
+      placeholder: "openai/tts-1",
+    },
+    {
+      key: "model_provider_model",
+      label: "Provider (Chat) Model",
+      capability: "chat",
+      envVar: "OMNIROUTE_MODEL",
+      description: "Default model when OmniRoute is selected as the chat model provider.",
+      placeholder: "openai/gpt-4o",
+    },
+  ];
+
   function showToast(setToast, message, type) {
     setToast({ message: message, type: type });
     setTimeout(function () {
@@ -62,17 +97,28 @@
   }
 
   function OmnirouteConfigPage() {
-    var [settings, setSettings] = useState({ api_key: "", base_url: "" });
-    var [envOverride, setEnvOverride] = useState({});
+    var [conn, setConn] = useState({ api_key: "", base_url: "" });
+    var [connEnv, setConnEnv] = useState({});
+    var [loadedApiKey, setLoadedApiKey] = useState("");
+    var [models, setModels] = useState({
+      image_model: "",
+      tts_model: "",
+      model_provider_model: "",
+    });
+    var [modelEnv, setModelEnv] = useState({});
+    var [options, setOptions] = useState({ image: [], tts: [], chat: [] });
+    var [optErrors, setOptErrors] = useState({});
     var [loading, setLoading] = useState(true);
+    var [loadingModels, setLoadingModels] = useState(true);
     var [saving, setSaving] = useState(false);
     var [dirty, setDirty] = useState(false);
     var [toast, setToast] = useState(null);
 
-    var hasEnvOverride = Object.values(envOverride).some(Boolean);
+    var hasEnvOverride =
+      Object.values(connEnv).some(Boolean) || Object.values(modelEnv).some(Boolean);
 
-    var handleChange = useCallback(function (key, value) {
-      setSettings(function (prev) {
+    var handleConnChange = useCallback(function (key, value) {
+      setConn(function (prev) {
         var next = Object.assign({}, prev);
         next[key] = value;
         return next;
@@ -80,12 +126,64 @@
       setDirty(true);
     }, []);
 
+    var handleModelChange = useCallback(function (key, value) {
+      setModels(function (prev) {
+        var next = Object.assign({}, prev);
+        next[key] = value;
+        return next;
+      });
+      setDirty(true);
+    }, []);
+
+    var loadModels = useCallback(function () {
+      setLoadingModels(true);
+      var caps = ["image", "tts", "chat"];
+      Promise.all(
+        caps.map(function (cap) {
+          return fetchJSON(API + "/models?capability=" + cap)
+            .then(function (data) {
+              return { cap: cap, models: data.models || [], error: data.error || "" };
+            })
+            .catch(function () {
+              return { cap: cap, models: [], error: "Could not reach OmniRoute." };
+            });
+        })
+      )
+        .then(function (results) {
+          var opts = { image: [], tts: [], chat: [] };
+          var errs = {};
+          results.forEach(function (r) {
+            opts[r.cap] = r.models;
+            if (r.error) errs[r.cap] = r.error;
+          });
+          setOptions(opts);
+          setOptErrors(errs);
+        })
+        .finally(function () {
+          setLoadingModels(false);
+        });
+    }, []);
+
     var handleLoad = useCallback(function () {
       setLoading(true);
-      fetchJSON("/api/plugins/omniroute/settings")
-        .then(function (data) {
-          setSettings(data.settings || { api_key: "", base_url: "" });
-          setEnvOverride(data.has_env_override || {});
+      Promise.all([
+        fetchJSON(API + "/settings"),
+        fetchJSON(API + "/config"),
+      ])
+        .then(function (res) {
+          var s = res[0] || {};
+          var c = res[1] || {};
+          var settings = s.settings || { api_key: "", base_url: "" };
+          setConn(settings);
+          setLoadedApiKey(settings.api_key || "");
+          setConnEnv(s.has_env_override || {});
+          var cfg = c.config || {};
+          setModels({
+            image_model: cfg.image_model || "",
+            tts_model: cfg.tts_model || "",
+            model_provider_model: cfg.model_provider_model || "",
+          });
+          setModelEnv(c.env_override || {});
           setDirty(false);
         })
         .catch(function () {
@@ -98,67 +196,147 @@
 
     var handleSave = useCallback(function () {
       setSaving(true);
-      fetchJSON("/api/plugins/omniroute/settings", {
+      // Only send the API key if the user actually changed it — otherwise we
+      // would persist the masked value (sk-…***…key) and corrupt the token.
+      var apiKeyChanged = (conn.api_key || "") !== loadedApiKey;
+      var settingsBody = {
+        api_key: apiKeyChanged ? (conn.api_key || "").trim() : "",
+        base_url: (conn.base_url || "").trim(),
+      };
+      // Connection fields are intentionally empty here so /config preserves
+      // them — connection lives in the /settings store.
+      var configBody = {
+        token: "",
+        base_url: "",
+        search_provider: "",
+        image_model: (models.image_model || "").trim(),
+        tts_model: (models.tts_model || "").trim(),
+        model_provider_model: (models.model_provider_model || "").trim(),
+      };
+
+      fetchJSON(API + "/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: (settings.api_key || "").trim(),
-          base_url: (settings.base_url || "").trim(),
-        }),
+        body: JSON.stringify(settingsBody),
       })
-        .then(function (data) {
-          if (data.success) {
-            showToast(setToast, "OmniRoute settings saved.", "success");
-            if (data.settings) {
-              setSettings(data.settings);
-            }
-            setDirty(false);
-          } else {
-            showToast(setToast, data.message || "Save failed.", "error");
+        .then(function (sRes) {
+          if (sRes && sRes.success === false) {
+            throw new Error(sRes.message || "Failed to save connection.");
           }
+          return fetchJSON(API + "/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(configBody),
+          });
         })
-        .catch(function () {
-          showToast(setToast, "Save failed — network error.", "error");
+        .then(function (cRes) {
+          if (cRes && cRes.success === false) {
+            throw new Error(cRes.message || "Failed to save models.");
+          }
+          showToast(setToast, "OmniRoute settings saved.", "success");
+          setDirty(false);
+          handleLoad();
+          loadModels();
+        })
+        .catch(function (err) {
+          showToast(setToast, (err && err.message) || "Save failed.", "error");
         })
         .finally(function () {
           setSaving(false);
         });
-    }, [settings]);
+    }, [conn, models, loadedApiKey, handleLoad, loadModels]);
 
     useEffect(function () {
       handleLoad();
-    }, [handleLoad]);
+      loadModels();
+    }, [handleLoad, loadModels]);
 
-    function renderField(field) {
-      var isOverridden = !!envOverride[field.key];
+    function renderEnvHeader(label, fieldKey, envVar, overridden) {
+      return h(
+        "div",
+        { className: "omniroute-field-header" },
+        h(Label, { htmlFor: "omniroute-" + fieldKey }, label),
+        h(
+          "span",
+          { className: "omniroute-env-var" },
+          overridden
+            ? h(Badge, { variant: "warning", className: "omniroute-badge-env" }, "env")
+            : null,
+          envVar
+        )
+      );
+    }
+
+    function renderConnField(field) {
+      var isOverridden = !!connEnv[field.key];
       return h(
         "div",
         { key: field.key, className: "omniroute-field" },
-        h(
-          "div",
-          { className: "omniroute-field-header" },
-          h(Label, { htmlFor: "omniroute-" + field.key }, field.label),
-          h(
-            "span",
-            { className: "omniroute-env-var" },
-            isOverridden
-              ? h(Badge, { variant: "warning", className: "omniroute-badge-env" }, "env")
-              : null,
-            field.envVar
-          )
-        ),
+        renderEnvHeader(field.label, field.key, field.envVar, isOverridden),
         h(Input, {
           id: "omniroute-" + field.key,
           type: field.type,
-          value: settings[field.key] || "",
+          value: conn[field.key] || "",
           placeholder: field.placeholder,
           disabled: isOverridden || loading,
           onChange: function (e) {
-            handleChange(field.key, e.target.value);
+            handleConnChange(field.key, e.target.value);
           },
           className: "omniroute-input",
         }),
         h("p", { className: "omniroute-field-desc" }, field.description)
+      );
+    }
+
+    function renderModelField(field) {
+      var isOverridden = !!modelEnv[field.key];
+      var listId = "omniroute-models-" + field.capability;
+      var opts = options[field.capability] || [];
+      var err = optErrors[field.capability];
+      var count = opts.length;
+      var hint = loadingModels
+        ? "Loading models…"
+        : err
+        ? err
+        : count
+        ? count + " models available — type to filter or pick from the list."
+        : "No models found.";
+      return h(
+        "div",
+        { key: field.key, className: "omniroute-field" },
+        renderEnvHeader(field.label, field.key, field.envVar, isOverridden),
+        h(
+          "input",
+          {
+            id: "omniroute-" + field.key,
+            type: "text",
+            list: listId,
+            value: models[field.key] || "",
+            placeholder: field.placeholder,
+            disabled: isOverridden || loading,
+            autoComplete: "off",
+            onChange: function (e) {
+              handleModelChange(field.key, e.target.value);
+            },
+            className: "omniroute-input omniroute-select",
+          }
+        ),
+        h(
+          "datalist",
+          { id: listId },
+          opts.map(function (m) {
+            var label = m.name && m.name !== m.id ? m.id + " — " + m.name : m.id;
+            return h("option", { key: m.id, value: m.id }, label);
+          })
+        ),
+        h(
+          "p",
+          {
+            className:
+              "omniroute-field-desc" + (err ? " omniroute-model-error" : ""),
+          },
+          field.description + " " + hint
+        )
       );
     }
 
@@ -176,7 +354,7 @@
         h(
           "p",
           { className: "omniroute-subtitle" },
-          "Configure the OmniRoute connection. Model selection is handled in the main Hermes settings."
+          "Configure the OmniRoute connection and select the models used for image generation, text-to-speech, and chat routing."
         )
       ),
 
@@ -197,14 +375,35 @@
         Card,
         { className: "omniroute-card" },
         h(CardHeader, null, h(CardTitle, null, "Connection")),
+        h(CardContent, null, CONNECTION_FIELDS.map(renderConnField))
+      ),
+
+      h(
+        Card,
+        { className: "omniroute-card" },
+        h(
+          CardHeader,
+          null,
+          h(CardTitle, null, "Models"),
+          h(
+            Button,
+            {
+              variant: "outline",
+              onClick: loadModels,
+              disabled: loadingModels,
+              className: "omniroute-refresh-btn",
+            },
+            loadingModels ? "Loading..." : "Reload models"
+          )
+        ),
         h(
           CardContent,
           null,
-          FIELDS.map(renderField),
+          MODEL_FIELDS.map(renderModelField),
           h(
             "div",
             { className: "omniroute-helper-text" },
-            "TTS model, image model, default chat model, and search provider are configured in the main Hermes settings (Settings → TTS / Image / Web / Model)."
+            "Model lists are fetched live from OmniRoute and require a valid API key. Search provider selection remains in the main Hermes settings (Settings → Web)."
           )
         )
       ),

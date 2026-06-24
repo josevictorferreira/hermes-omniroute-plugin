@@ -46,3 +46,9 @@ nix-shell -p 'python3.withPackages(ps:[ps.requests ps.pytest])' --run 'python3 -
 - `DEFAULT_MODEL` (`antigravity/gemini-3.1-flash-image`) is set to a provider known-configured on the target instance.
 - Token: env `OMNIROUTE_TOKEN`/`OMNIROUTE_API_KEY` preferred over config-file (plaintext).
 - `.omo/` `.omc/` `.claude/` are gitignored tool state — ignore them.
+
+## References
+
+Always check both references when in doupt about the integrations
+- **Omniroute API Documentation** https://omniroute.josevictor.me/docs 
+- **Hermes Plugins Documentation** https://hermes-agent.nousresearch.com/docs/developer-guide 

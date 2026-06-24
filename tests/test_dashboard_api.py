@@ -426,6 +426,126 @@ class TestGetModels:
         assert any("custom.example.com" in u for u in called_url)
 
 
+class _FakeResp:
+    def __init__(self, data):
+        self._data = data
+
+    def read(self):
+        return self._data.encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+class TestModelCapabilities:
+    """GET /models?capability=… routes to the right catalog and filters it."""
+
+    def _api(self, monkeypatch):
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        sys.modules.pop("omniroute_dashboard_api", None)
+        return load_plugin_api_with_config(
+            mock_config={"image_gen": {"omniroute": {"token": "t"}}}
+        )
+
+    def test_normalize_root_strips_known_suffixes(self, monkeypatch):
+        api = self._api(monkeypatch)
+        assert api._normalize_root("https://x.com/api/v1") == "https://x.com"
+        assert api._normalize_root("https://x.com/v1/") == "https://x.com"
+        assert api._normalize_root("https://x.com/api") == "https://x.com"
+        assert api._normalize_root("https://x.com") == "https://x.com"
+
+    def test_image_capability_hits_images_endpoint(self, monkeypatch):
+        api = self._api(monkeypatch)
+        urls = []
+
+        class FakeRequest:
+            def __init__(self, url, *a, **kw):
+                urls.append(url)
+
+        monkeypatch.setattr(api.urllib.request, "Request", FakeRequest)
+        monkeypatch.setattr(
+            api.urllib.request, "urlopen",
+            lambda *a, **kw: _FakeResp(json.dumps({"data": [{"id": "openai/gpt-image-2"}]})),
+        )
+        resp = asyncio.run(api.get_models(capability="image"))
+        assert any(u.endswith("/v1/images/generations") for u in urls), urls
+        assert [m.id for m in resp.models] == ["openai/gpt-image-2"]
+
+    def test_tts_capability_filters_by_keyword(self, monkeypatch):
+        api = self._api(monkeypatch)
+        urls = []
+
+        class FakeRequest:
+            def __init__(self, url, *a, **kw):
+                urls.append(url)
+
+        data = json.dumps({"data": [
+            {"id": "openai/tts-1"},
+            {"id": "gemini/flash-tts-preview"},
+            {"id": "openai/gpt-4o"},
+            {"id": "anthropic/claude-4"},
+        ]})
+        monkeypatch.setattr(api.urllib.request, "Request", FakeRequest)
+        monkeypatch.setattr(api.urllib.request, "urlopen", lambda *a, **kw: _FakeResp(data))
+        resp = asyncio.run(api.get_models(capability="tts"))
+        ids = [m.id for m in resp.models]
+        assert ids == ["gemini/flash-tts-preview", "openai/tts-1"]
+        assert any(u.endswith("/v1/models") for u in urls), urls
+
+    def test_chat_capability_excludes_non_chat_types(self, monkeypatch):
+        api = self._api(monkeypatch)
+        data = json.dumps({"data": [
+            {"id": "openai/gpt-4o"},
+            {"id": "openai/tts-1", "type": "audio"},
+            {"id": "openai/gpt-image-2", "type": "image"},
+            {"id": "cohere/embed", "type": "embedding"},
+        ]})
+        monkeypatch.setattr(api.urllib.request, "urlopen", lambda *a, **kw: _FakeResp(data))
+        resp = asyncio.run(api.get_models(capability="chat"))
+        assert [m.id for m in resp.models] == ["openai/gpt-4o"]
+
+    def test_models_use_settings_store_token(self, monkeypatch):
+        """A token saved via /settings (omniroute.settings.api_key) is used."""
+        monkeypatch.delenv("OMNIROUTE_TOKEN", raising=False)
+        monkeypatch.delenv("OMNIROUTE_API_KEY", raising=False)
+        sys.modules.pop("omniroute_dashboard_api", None)
+        api = load_plugin_api_with_config(
+            mock_config={"omniroute": {"settings": {"api_key": "store-key"}}}
+        )
+        monkeypatch.setattr(
+            api.urllib.request, "urlopen",
+            lambda *a, **kw: _FakeResp(json.dumps({"data": []})),
+        )
+        resp = asyncio.run(api.get_models(capability="chat"))
+        assert resp.error == ""
+
+    def test_settings_base_url_normalized_no_double_v1(self, monkeypatch):
+        """A base_url ending in /api/v1 must not yield /api/v1/v1/models."""
+        monkeypatch.delenv("OMNIROUTE_BASE_URL", raising=False)
+        monkeypatch.setenv("OMNIROUTE_TOKEN", "t")
+        sys.modules.pop("omniroute_dashboard_api", None)
+        api = load_plugin_api_with_config(
+            mock_config={"omniroute": {"settings": {"base_url": "https://x.com/api/v1"}}}
+        )
+        urls = []
+
+        class FakeRequest:
+            def __init__(self, url, *a, **kw):
+                urls.append(url)
+
+        monkeypatch.setattr(api.urllib.request, "Request", FakeRequest)
+        monkeypatch.setattr(
+            api.urllib.request, "urlopen",
+            lambda *a, **kw: _FakeResp(json.dumps({"data": []})),
+        )
+        asyncio.run(api.get_models(capability="chat"))
+        assert urls == ["https://x.com/v1/models"], urls
+
+
 # ---------------------------------------------------------------------------
 # Tests: model_provider_model in config
 # ---------------------------------------------------------------------------
@@ -439,7 +559,7 @@ class TestModelProviderConfig:
 
     def test_get_config_reads_model_provider_model(self):
         cfg = {
-            "model": {"omniroute": {"default": "openai/gpt-4o"}},
+            "model": {"omniroute": {"model": "openai/gpt-4o"}},
         }
         api = load_plugin_api_with_config(mock_config=cfg)
         resp = asyncio.run(api.get_config())
@@ -463,10 +583,10 @@ class TestModelProviderConfig:
 
         resp = asyncio.run(api.post_config(FakeBody()))
         assert resp.success is True
-        # Verify it was saved to the right nested path
+        # Verify it was saved to the documented nested path (model.omniroute.model)
         model_section = saved.get("model", {})
         omniroute_section = model_section.get("omniroute", {})
-        assert omniroute_section.get("default") == "anthropic/claude-4"
+        assert omniroute_section.get("model") == "anthropic/claude-4"
 
     def test_post_config_validation_requires_token(self):
         api = load_plugin_api_with_config(mock_config={})
@@ -483,8 +603,14 @@ class TestModelProviderConfig:
         assert resp.success is False
         assert "token" in resp.message.lower()
 
-    def test_post_config_validation_requires_base_url(self):
-        api = load_plugin_api_with_config(mock_config={})
+    def test_post_config_base_url_not_required(self):
+        """base_url has a default, so a blank base_url must not block a save."""
+        saved = {}
+
+        def mock_save(c):
+            saved.update(c)
+
+        api = load_plugin_api_with_config(mock_config={}, mock_save=mock_save)
 
         class FakeBody:
             token = "test-token"
@@ -495,8 +621,32 @@ class TestModelProviderConfig:
             model_provider_model = "anthropic/claude-4"
 
         resp = asyncio.run(api.post_config(FakeBody()))
-        assert resp.success is False
-        assert "base url" in resp.message.lower() or "url" in resp.message.lower()
+        assert resp.success is True
+
+    def test_post_config_validation_passes_with_resolved_token(self):
+        """A token from the settings store satisfies validation even when the
+        request body omits it (connection is managed via /settings)."""
+        saved = {}
+
+        def mock_save(c):
+            saved.update(c)
+
+        api = load_plugin_api_with_config(
+            mock_config={"omniroute": {"settings": {"api_key": "store-key"}}},
+            mock_save=mock_save,
+        )
+
+        class FakeBody:
+            token = ""
+            base_url = ""
+            image_model = ""
+            tts_model = ""
+            search_provider = ""
+            model_provider_model = "anthropic/claude-4"
+
+        resp = asyncio.run(api.post_config(FakeBody()))
+        assert resp.success is True
+        assert saved["model"]["omniroute"]["model"] == "anthropic/claude-4"
 
     def test_post_config_no_validation_without_model(self):
         saved = {}

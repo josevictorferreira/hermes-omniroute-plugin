@@ -1,7 +1,7 @@
 {
   "name": "omniroute",
   "label": "OmniRoute",
-  "description": "Configure the OmniRoute connection: API key and base URL only. Model selection is managed in the main Hermes settings.",
+  "description": "Configure the OmniRoute connection (API key, base URL) and select the image, TTS, and chat models from the live OmniRoute catalog.",
   "icon": "Router",
   "version": "0.3.0",
   "tab": {

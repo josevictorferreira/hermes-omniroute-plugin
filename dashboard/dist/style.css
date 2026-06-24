@@ -153,8 +153,35 @@
   color: hsl(217 91% 50%);
 }
 
-.omniroute-model-error,
-.omniroute-refresh-btn,
+/* Native <input> backed by a <datalist> for searchable model selection.
+   Styled to resemble the shadcn Input used for the connection fields. */
 .omniroute-select {
-  display: none;
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground, 240) 10% 4%);
+  background: hsl(var(--background, 0) 0% 100%);
+  border: 1px solid hsl(var(--input, 240) 6% 90%);
+  border-radius: 0.375rem;
+  outline: none;
+}
+
+.omniroute-select:focus {
+  border-color: hsl(var(--ring, 240) 5% 65%);
+  box-shadow: 0 0 0 2px hsl(var(--ring, 240) 5% 65% / 0.25);
+}
+
+.omniroute-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.omniroute-refresh-btn {
+  float: right;
+  margin-top: -0.25rem;
+}
+
+.omniroute-model-error {
+  color: hsl(0 84% 50%);
 }

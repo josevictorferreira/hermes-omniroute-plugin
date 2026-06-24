@@ -44,6 +44,17 @@ export OMNIROUTE_TTS_MODEL=... optional, overrides config TTS model (default: op
 
 Default model when none is configured: `antigravity/gemini-3.1-flash-image`.
 
+### Dashboard
+
+The OmniRoute tab in the Hermes dashboard configures the connection (API key,
+base URL) and lets you **pick** the image, TTS, and provider (chat) models from
+searchable dropdowns populated live from OmniRoute's catalog
+(`/v1/images/generations` for image, `/v1/models` filtered for TTS/chat).
+Connection values persist to the `omniroute.settings` store; model selections
+persist to their canonical Hermes paths (`image_gen.omniroute.model`,
+`tts.omniroute.model`, `model.omniroute.model`). Env vars still take precedence
+and are flagged as read-only in the UI.
+
 ### Model provider
 
 Select OmniRoute as your model provider in `~/.hermes/config.yaml`:

@@ -10,7 +10,7 @@ variables, mapping each env variable to its canonical config.yaml path:
   OMNIROUTE_IMAGE_MODEL  → image_gen.omniroute.model
   OMNIROUTE_TTS_MODEL    → tts.omniroute.model
   OMNIROUTE_SEARCH_PROVIDER → web.omniroute.search_provider
-OMNIROUTE_MODEL → model.omniroute.default
+  OMNIROUTE_MODEL        → model.omniroute.model
 
 Security note: the plugin API routes go through the dashboard auth
 middleware just like core API routes (loopback token or gated cookie).
@@ -45,6 +45,14 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MODELS_BASE_URL = "https://omniroute.josevictor.me"
 
+# Keywords used to recognise TTS-capable models in the /v1/models catalog —
+# kept in sync with providers/tts.py (_TTS_MODEL_KEYWORDS).
+_TTS_KEYWORDS = ("tts", "speech", "audio")
+
+# Model ``type`` values that are NOT chat/completion models; excluded from the
+# provider-model (chat) picker.
+_NON_CHAT_TYPES = {"image", "video", "audio", "embedding", "rerank", "moderation", "music"}
+
 # Config paths for each config variable (dotted key format used by
 # hermes_cli.config._set_nested).
 _CONFIG_KEYS = {
@@ -53,7 +61,10 @@ _CONFIG_KEYS = {
     "image_model": "image_gen.omniroute.model",
     "tts_model": "tts.omniroute.model",
     'search_provider': 'web.omniroute.search_provider',
-    'model_provider_model': 'model.omniroute.default',
+    # Primary chat model for OmniRoute as a model provider. Matches the
+    # documented config path (README: model.omniroute.model). The framework's
+    # separate ``default_aux_model`` slot is not configured from here.
+    'model_provider_model': 'model.omniroute.model',
 }
 
 _ENV_VARS = {
@@ -183,11 +194,29 @@ class SettingsSaveResponse(BaseModel):
 
 
 
+def _normalize_root(base_url: str) -> str:
+    """Strip any ``/api/v1``, ``/v1`` or ``/api`` suffix → host root.
+
+    Omniroute serves the catalog at both ``/v1/...`` and ``/api/v1/...`` but a
+    doubled path (``/api/v1/v1/models``) 404s.  Callers configure ``base_url``
+    inconsistently (some with ``/api/v1``, some without), so we reduce to the
+    host root and append the canonical ``/v1/<path>`` ourselves.
+    """
+    b = (base_url or "").rstrip("/")
+    for suffix in ("/api/v1", "/v1", "/api"):
+        if b.endswith(suffix):
+            return b[: -len(suffix)].rstrip("/")
+    return b
+
+
 def _resolve_base_url(config: Dict[str, Any]) -> str:
-    """Resolve the Omniroute base URL: env > config > default."""
+    """Resolve the Omniroute base URL: env > settings store > legacy config > default."""
     env = os.environ.get("OMNIROUTE_BASE_URL")
     if env and env.strip():
         return env.strip().rstrip("/")
+    val = _get_config_value(config, "omniroute.settings.base_url", default="")
+    if isinstance(val, str) and val.strip():
+        return val.strip().rstrip("/")
     val = _get_config_value(config, "image_gen.omniroute.base_url", default="")
     if isinstance(val, str) and val.strip():
         return val.strip().rstrip("/")
@@ -195,28 +224,51 @@ def _resolve_base_url(config: Dict[str, Any]) -> str:
 
 
 def _resolve_token(config: Dict[str, Any]) -> Optional[str]:
-    """Resolve the Omniroute token: env > config."""
+    """Resolve the Omniroute token: env > settings store > legacy config."""
     for var in ("OMNIROUTE_TOKEN", "OMNIROUTE_API_KEY"):
         env = os.environ.get(var)
         if env and env.strip():
             return env.strip()
+    val = _get_config_value(config, "omniroute.settings.api_key", default="")
+    if isinstance(val, str) and val.strip():
+        return val.strip()
     val = _get_config_value(config, "image_gen.omniroute.token", default="")
     if isinstance(val, str) and val.strip():
         return val.strip()
     return None
 
 
+def _model_matches_capability(item: Dict[str, Any], capability: str) -> bool:
+    """Filter a /v1/models entry to a capability (tts | chat). Image uses its
+    own dedicated endpoint and is not filtered here."""
+    if capability == "tts":
+        return any(kw in str(item.get("id", "")).lower() for kw in _TTS_KEYWORDS)
+    if capability == "chat":
+        return str(item.get("type", "")).lower() not in _NON_CHAT_TYPES
+    return True
+
+
 @router.get("/models")
-async def get_models() -> ModelsResponse:
-    """Fetch available models from the Omniroute /v1/models endpoint."""
+async def get_models(capability: str = "chat") -> ModelsResponse:
+    """Fetch models for a capability from Omniroute.
+
+    ``capability`` selects both the source endpoint and the filter:
+
+      * ``image`` → ``GET /v1/images/generations`` (the canonical image registry;
+        the chat ``/models`` catalog rejects these at generate time)
+      * ``tts``   → ``GET /v1/models`` filtered by TTS keywords
+      * ``chat``  → ``GET /v1/models`` minus non-chat model types (default)
+    """
     config = _load_hermes_config()
-    base_url = _resolve_base_url(config)
+    root = _normalize_root(_resolve_base_url(config))
     token = _resolve_token(config)
 
     if not token:
         return ModelsResponse(models=[], error="API token required. Set OMNIROUTE_TOKEN or configure it below.")
 
-    url = base_url.rstrip("/") + "/v1/models"
+    cap = (capability or "chat").lower().strip()
+    path = "/v1/images/generations" if cap == "image" else "/v1/models"
+    url = root + path
     req = urllib.request.Request(url, headers={
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
@@ -230,8 +282,13 @@ async def get_models() -> ModelsResponse:
         logger.error("Failed to fetch models from %s: %s", url, exc)
         return ModelsResponse(models=[], error=f"Failed to reach Omniroute: {exc}")
 
+    raw = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
     models: List[ModelEntry] = []
-    for item in data.get("data", []):
+    for item in raw:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        if cap in ("tts", "chat") and not _model_matches_capability(item, cap):
+            continue
         models.append(ModelEntry(
             id=item.get("id", ""),
             name=item.get("name", item.get("id", "")),
@@ -271,15 +328,20 @@ async def get_config() -> ConfigResponse:
 @router.post("/config")
 async def post_config(body: OmnirouteConfig) -> ConfigSaveResponse:
     """Save Omniroute configuration values to config.yaml."""
-    # Validate required fields when model provider is configured.
+    config = _load_hermes_config()
+
+    # A model selection only works if a token is reachable. The token may come
+    # from the request body, an env var, or the settings store — so validate
+    # against the *resolved* token, not just the body (base_url always has a
+    # default and need not be re-entered here).
     if body.model_provider_model and body.model_provider_model.strip():
-        if not body.token.strip():
-            return ConfigSaveResponse(success=False, message="API token is required when selecting an OmniRoute model provider model.")
-        if not body.base_url.strip():
-            return ConfigSaveResponse(success=False, message="Base URL is required when selecting an OmniRoute model provider model.")
+        if not body.token.strip() and not _resolve_token(config):
+            return ConfigSaveResponse(
+                success=False,
+                message="An API token is required before selecting models. Set the OmniRoute API key (or OMNIROUTE_TOKEN).",
+            )
 
     try:
-        config = _load_hermes_config()
 
         # Build a dict of values, excluding empty strings (treat as unset).
         for key, dotted in _CONFIG_KEYS.items():

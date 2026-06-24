@@ -3,11 +3,12 @@
 The dashboard frontend is a single plain-IIFE JavaScript file that consumes
 ``window.__HERMES_PLUGIN_SDK__``.  Because the repo has no JavaScript build
 chain or test runner, these tests validate the compiled asset statically and
-programmatically to ensure the UI exposes *only* the intended surface:
+programmatically to ensure the UI exposes the intended surface:
 
-* exactly two configurable inputs: OmniRoute API key and base URL
-* calls the limited ``/settings`` backend endpoints, not the legacy ``/config``
-* points users toward the main Hermes settings for model/provider selection
+* connection fields: OmniRoute API key + base URL (via the ``/settings`` API)
+* model fields: image, TTS and provider (chat) model, each a searchable input
+  backed by a ``<datalist>`` populated from ``/models?capability=…``
+* model selections persist through the ``/config`` API
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ def js_source() -> str:
 
 
 class TestDashboardStaticConstraints:
-    """Ensure the distributed JS asset matches the reduced UI contract."""
+    """Ensure the distributed JS asset matches the connection+models contract."""
 
     def test_javascript_is_syntactically_valid(self):
         """``node --check`` must accept the IIFE without errors."""
@@ -42,57 +43,52 @@ class TestDashboardStaticConstraints:
         )
         assert result.returncode == 0, result.stderr
 
-    def test_only_two_field_definitions(self, js_source: str):
-        """FIELDS array must contain exactly api_key and base_url."""
-        field_keys = re.findall(
-            r'key:\s*"(api_key|base_url|token|image_model|tts_model|search_provider|model_provider_model)"',
-            js_source,
-        )
-        assert field_keys == ["api_key", "base_url"], f"Unexpected field keys: {field_keys}"
+    def test_connection_fields_present(self, js_source: str):
+        """The connection group must define api_key and base_url."""
+        conn_keys = re.findall(r'key:\s*"(api_key|base_url)"', js_source)
+        assert set(conn_keys) == {"api_key", "base_url"}, conn_keys
 
-    def test_no_legacy_model_fields(self, js_source: str):
-        """Legacy model/provider fields must not be present."""
-        disallowed = [
-            "image_model",
-            "tts_model",
-            "search_provider",
-            "model_provider_model",
-            "OMNIROUTE_IMAGE_MODEL",
-            "OMNIROUTE_TTS_MODEL",
-            "OMNIROUTE_SEARCH_PROVIDER",
-            "OMNIROUTE_MODEL",
-        ]
-        for token in disallowed:
-            assert token not in js_source, f"Dashboard frontend references legacy field: {token}"
+    def test_model_fields_present(self, js_source: str):
+        """The model group must define image, TTS and provider model fields."""
+        for key in ("image_model", "tts_model", "model_provider_model"):
+            assert key in js_source, f"Missing model field: {key}"
 
-    def test_uses_settings_endpoints(self, js_source: str):
-        """All fetchJSON calls must target the limited ``/settings`` endpoint."""
-        endpoints = re.findall(r'fetchJSON\("([^"]+)"', js_source)
-        assert endpoints == [
-            "/api/plugins/omniroute/settings",
-            "/api/plugins/omniroute/settings",
-        ], f"Unexpected endpoints: {endpoints}"
+    def test_model_capabilities_declared(self, js_source: str):
+        """Each model field is tied to a catalog capability."""
+        caps = set(re.findall(r'capability:\s*"(image|tts|chat)"', js_source))
+        assert caps == {"image", "tts", "chat"}, caps
 
-    def test_http_methods_match_settings_crud(self, js_source: str):
-        """``GET`` (default) and ``PUT`` are the verbs used against ``/settings``."""
-        methods = re.findall(r'method:\s*"(GET|PUT|POST|PATCH|DELETE)"', js_source)
-        assert set(methods) == {"PUT"}, f"Unexpected methods: {methods}"
+    def test_uses_settings_and_config_and_models_endpoints(self, js_source: str):
+        """The UI talks to /settings (connection), /config (models) and /models."""
+        assert "/settings" in js_source
+        assert "/config" in js_source
+        assert "/models?capability=" in js_source
 
-    def test_helper_text_mentions_hermes_settings(self, js_source: str):
-        """The UI must direct users to the main Hermes config for models."""
-        assert "main Hermes settings" in js_source
-        assert "TTS" in js_source
-        assert "Image" in js_source
-        assert "Web" in js_source or "Model" in js_source
+    def test_http_methods_cover_both_stores(self, js_source: str):
+        """PUT persists the connection (/settings); POST persists models (/config)."""
+        methods = set(re.findall(r'method:\s*"(GET|PUT|POST|PATCH|DELETE)"', js_source))
+        assert methods == {"PUT", "POST"}, methods
 
-    def test_manifest_describes_limited_surface(self):
-        """manifest.json should not promise model configuration."""
+    def test_model_fields_use_datalist(self, js_source: str):
+        """Model inputs must be backed by a <datalist> for searchable picking."""
+        assert "datalist" in js_source
+        assert "list:" in js_source
+
+    def test_does_not_round_trip_masked_api_key(self, js_source: str):
+        """Saving must only send the API key when the user changed it."""
+        assert "loadedApiKey" in js_source
+        assert "apiKeyChanged" in js_source
+
+    def test_manifest_describes_model_selection(self):
+        """manifest.json should advertise model selection."""
         manifest = MANIFEST_PATH.read_text(encoding="utf-8")
         assert "API key" in manifest
-        assert "base url" in manifest.lower()
-        assert "Model selection" in manifest
+        assert "base URL" in manifest or "base url" in manifest.lower()
+        assert "model" in manifest.lower()
 
-    def test_css_contains_helper_text_style(self):
-        """The CSS must style the helper-text block."""
+    def test_css_styles_model_select(self):
+        """The CSS must style the datalist-backed select input (not hide it)."""
         css = CSS_PATH.read_text(encoding="utf-8")
+        assert ".omniroute-select" in css
+        assert "display: none" not in css.split(".omniroute-select", 1)[1][:80]
         assert ".omniroute-helper-text" in css
