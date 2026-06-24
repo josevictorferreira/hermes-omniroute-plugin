@@ -18,9 +18,19 @@ from agent.image_gen_provider import (
     resolve_aspect_ratio,
     save_b64_image,
     save_url_image,
-    normalize_reference_images,
     success_response,
 )
+
+try:  # Added in newer Hermes; older installs lack it (would break plugin load).
+    from agent.image_gen_provider import normalize_reference_images
+except ImportError:
+    def normalize_reference_images(urls: Any) -> List[str]:
+        """Fallback for Hermes builds without the helper: coerce to a clean URL list."""
+        if not urls:
+            return []
+        if isinstance(urls, str):
+            urls = [urls]
+        return [u.strip() for u in urls if isinstance(u, str) and u.strip()]
 
 from .._version import _PLUGIN_VERSION
 from ..config import (
