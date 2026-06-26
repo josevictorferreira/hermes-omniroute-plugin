@@ -7,6 +7,7 @@ Hermes calls speech-to-text "transcription"; this provider plugs into the
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
 from typing import Any, Dict, List, Optional
 
@@ -143,7 +144,7 @@ class OmnirouteSTTProvider(TranscriptionProvider):
                         "Authorization": f"Bearer {token}",
                         "User-Agent": f"hermes-omniroute-plugin/{_PLUGIN_VERSION}",
                     },
-                    files={"file": (os.path.basename(file_path), audio_file)},
+                    files={"file": (os.path.basename(file_path), audio_file, mimetypes.guess_type(file_path)[0] or "application/octet-stream")},
                     data=data,
                     timeout=120,
                 )
