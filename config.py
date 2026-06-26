@@ -171,6 +171,19 @@ def _resolve_tts_model(model: Optional[str] = None) -> Optional[str]:
     return DEFAULT_TTS_MODEL
 
 
+def _resolve_tts_voice(voice: Optional[str] = None) -> Optional[str]:
+    """Resolve TTS voice: explicit arg > OMNIROUTE_TTS_VOICE env > tts.omniroute.voice > None."""
+    if voice and voice.strip():
+        return voice.strip()
+    env = os.environ.get("OMNIROUTE_TTS_VOICE")
+    if env and env.strip():
+        return env.strip()
+    value = _tts_omniroute_config().get("voice")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
 def _resolve_tts_token() -> Optional[str]:
     """Resolve TTS token: env > tts.omniroute.token > image_gen.omniroute.token (shared service)."""
     env = os.environ.get("OMNIROUTE_API_KEY")

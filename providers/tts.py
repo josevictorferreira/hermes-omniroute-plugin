@@ -16,6 +16,7 @@ from ..config import (
     _resolve_base_url,
     _resolve_tts_model,
     _resolve_tts_token,
+    _resolve_tts_voice,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,7 +181,7 @@ class OmnirouteTTSProvider(TTSProvider):
             )
 
         resolved_model = _resolve_tts_model(model)
-        resolved_voice = voice or self.default_voice()
+        resolved_voice = _resolve_tts_voice(voice) or self.default_voice()
         # Clamp format to supported audio types (mp3 / opus).
         fmt = (format or "mp3").lower().strip()
         if fmt not in ("mp3", "opus"):
